@@ -9,7 +9,7 @@ import time
 import cv2
 import numpy as np
 from .selective_crypto import ROOT, RestoreError, generate_keys, keyset, private_dir, protect
-from .selective_recognition import CPUAdapter, Classifier, SyntheticAdapter, synthetic_frame
+from .selective_recognition import CPUAdapter, Classifier, SyntheticAdapter, synthetic_frame, iou
 from .selective_recording import Recorder
 from .camera_manager import CameraManager, SELECTED
 from .face_display import korean_font
@@ -59,7 +59,15 @@ class MainCamera:
             candidates=list(modeldir.glob('*.onnx'))
             detector=next((str(p) for p in candidates if 'scrfd' in p.name.lower() or p.name.lower().startswith('det_')),'')
             recognizer=next((str(p) for p in candidates if 'w600k' in p.name.lower() or 'rec' in p.name.lower()),'')
-        adapter=CPUAdapter(detector,recognizer,self.gallery_path if Path(self.gallery_path).is_file() else None)
+        # The old selective path hard-coded 0.60, which dropped many profile faces.
+        # Reuse the project detection threshold so side faces are still detected and blurred.
+        det_thresh=float(getattr(self.config,'DETECTOR_CONF_THRESHOLD',0.35))
+        adapter=CPUAdapter(
+            detector,
+            recognizer,
+            self.gallery_path if Path(self.gallery_path).is_file() else None,
+            det_thresh=det_thresh,
+        )
         self.detector=adapter.detector;self.recognizer=adapter.recognizer
         return adapter
 
@@ -71,50 +79,130 @@ class MainCamera:
             self.thread.start()
 
     def _update_display_authorization(self, faces, observations, states, now):
-        """Apply match confirmation + delayed revoke to prevent one-frame auth flicker."""
+        """Stable live authorization with grant/retain hysteresis and restore-group sync.
+
+        A face is granted only at MATCH_THRESHOLD. Once granted, a lower retain threshold,
+        identity continuity, or short spatial continuity keeps it authorized through pose
+        changes. Most importantly, every detected face is stored as internal/external using
+        the same decision used by the monitor, so selective restore never silently falls into
+        the legacy master-only bucket while the screen says '허가자'.
+        """
         confirm=max(1,int(getattr(self.config,'FACE_AUTH_CONFIRM_MATCHES',2)))
         revoke=max(1,int(getattr(self.config,'FACE_AUTH_REVOKE_MISMATCHES',5)))
         hold=max(0.0,float(getattr(self.config,'FACE_AUTH_HOLD_SECONDS',0.8)))
         threshold=float(getattr(self.config,'MATCH_THRESHOLD',0.45))
+        retain_threshold=float(getattr(self.config,'FACE_AUTH_RETAIN_THRESHOLD',max(0.25,threshold-0.15)))
+        association_iou=float(getattr(self.config,'FACE_AUTH_TRACK_IOU',0.12))
+        state_ttl=max(1.2,hold+0.4)
         next_states={}
+        consumed=set()
 
         for face,observation in zip(faces,observations):
             track=face['track_id']
+            bbox=face['bbox']
             score=face.get('similarity')
             identity=observation.get('identity')
-            matched=(face.get('gallery_valid',False) and identity is not None and
-                     score is not None and np.isfinite(score) and score>=threshold)
+            score_ok=score is not None and np.isfinite(score)
+            gallery=face.get('gallery_valid',False)
+            strong_match=bool(gallery and identity is not None and score_ok and score>=threshold)
+            retain_match=bool(gallery and identity is not None and score_ok and score>=retain_threshold)
 
-            previous=states.get(track,{
-                'identity':None,'matches':0,'misses':0,'authorized':False,'hold_until':0.0
-            })
+            preferred=f'id:{identity}' if identity is not None else f'track:{track}'
+            state_key=preferred
+            previous=states.get(preferred)
+
+            # If ArcFace briefly loses identity during a head turn, recover the recent state
+            # by spatial overlap instead of treating the same person as a brand-new stranger.
+            if previous is None and not strong_match:
+                best_key=None;best_state=None;best_iou=0.0
+                for key,candidate in states.items():
+                    if key in consumed or now-candidate.get('last_seen',now)>state_ttl:
+                        continue
+                    cbbox=candidate.get('bbox')
+                    if cbbox is None:
+                        continue
+                    overlap=iou(bbox,cbbox)
+                    if overlap>best_iou:
+                        best_iou=overlap;best_key=key;best_state=candidate
+                if best_state is not None and best_iou>=association_iou:
+                    state_key=best_key;previous=best_state
+
+            if previous is None:
+                previous={
+                    'identity':None,'matches':0,'misses':0,'authorized':False,
+                    'hold_until':0.0,'bbox':bbox,'last_seen':now,'track_id':track,
+                }
             state=dict(previous)
+            previous_identity=state.get('identity')
+            spatial_same=iou(bbox,state.get('bbox',bbox))>=association_iou
 
-            if matched:
-                if state.get('identity')==identity:
+            if strong_match:
+                if previous_identity in (None,identity):
                     state['matches']=state.get('matches',0)+1
                 else:
-                    state['identity']=identity
                     state['matches']=1
                     state['authorized']=False
+                state['identity']=identity
                 state['misses']=0
                 if state['matches']>=confirm:
                     state['authorized']=True
+                if state.get('authorized',False):
                     state['hold_until']=now+hold
             else:
-                state['matches']=0
-                if state.get('authorized',False):
-                    state['misses']=state.get('misses',0)+1
+                same_identity=identity is not None and previous_identity==identity
+                may_retain=bool(
+                    state.get('authorized',False) and (
+                        (same_identity and retain_match) or
+                        spatial_same or
+                        now<state.get('hold_until',0.0)
+                    )
+                )
+                if may_retain:
+                    # A decent lower-threshold ArcFace match does not count as a miss.
+                    if same_identity and retain_match:
+                        state['misses']=0
+                        state['hold_until']=max(state.get('hold_until',0.0),now+hold)
+                    else:
+                        state['misses']=state.get('misses',0)+1
                     if state['misses']>=revoke and now>=state.get('hold_until',0.0):
                         state['authorized']=False
                         state['identity']=None
+                        state['matches']=0
                         state['misses']=0
                 else:
+                    state['authorized']=False
+                    state['matches']=0
                     state['misses']=0
-                    state['identity']=None
+                    if identity is None or not retain_match:
+                        state['identity']=None
 
-            face['authorized']=bool(state.get('authorized',False))
-            next_states[track]=state
+            authorized=bool(state.get('authorized',False))
+            face['authorized']=authorized
+
+            # Selective restore must follow the same classification shown on screen.
+            # Strongly matched registered faces are internal immediately; an authorized held
+            # face stays internal. Every other detected face is external. This intentionally
+            # avoids the old 'master' bucket that made 0001/0002 appear to restore nothing.
+            face['group']='internal' if (strong_match or authorized) else 'external'
+            face['reason']='authorized_or_strong_match' if face['group']=='internal' else 'unrecognized_external'
+
+            state['bbox']=bbox
+            state['last_seen']=now
+            state['track_id']=track
+            if strong_match:
+                state['identity']=identity
+            final_key=f'id:{state["identity"]}' if state.get('identity') is not None else f'track:{track}'
+            next_states[final_key]=state
+            consumed.add(state_key)
+            consumed.add(final_key)
+
+        # Keep recently authorized identity state for a short detector/landmark dropout so a
+        # reappearing side face does not have to build authorization from zero again.
+        for key,state in states.items():
+            if key in consumed or key in next_states:
+                continue
+            if state.get('authorized',False) and now-state.get('last_seen',now)<=state_ttl:
+                next_states[key]=dict(state)
 
         return next_states
 
