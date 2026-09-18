@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureFace-RX — 보호 자산</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; background: #F1F5F9; color: #1E293B; min-height: 100vh; }
+
+    /* ── 상단 바 ── */
+    .topbar {
+      background: #fff; border-bottom: 1px solid #E2E8F0;
+      padding: 0 24px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .topbar-logo { font-size: 17px; font-weight: 700; color: #3B82F6; letter-spacing: -0.3px; }
+    .topbar-logo span { color: #1E293B; font-weight: 400; }
+    .topbar-nav a {
+      text-decoration: none; color: #64748B;
+      margin-left: 4px; font-size: 14px;
+      padding: 6px 14px; border-radius: 8px; transition: background 0.15s;
+    }
+    .topbar-nav a:hover { background: #F1F5F9; color: #1E293B; }
+    .topbar-nav a.active { background: #EFF6FF; color: #3B82F6; font-weight: 600; }
+
+    /* ── 레이아웃 ── */
+    .page { display: flex; height: calc(100vh - 56px); }
+
+    /* ── 청크 목록 패널 ── */
+    .panel-list {
+      width: 320px; min-width: 260px;
+      background: #fff; border-right: 1px solid #E2E8F0;
+      overflow-y: auto; flex-shrink: 0;
+    }
+    .panel-list-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid #E2E8F0;
+      font-size: 13px; font-weight: 600; color: #475569;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .chunk-count { font-size: 12px; color: #94A3B8; font-weight: 400; }
+
+    .chunk-item {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 14px 20px; cursor: pointer;
+      border-bottom: 1px solid #F1F5F9;
+      transition: background 0.12s;
+    }
+    .chunk-item:hover { background: #F8FAFC; }
+    .chunk-item.selected { background: #EFF6FF; border-left: 3px solid #3B82F6; }
+
+    .chunk-thumb {
+      width: 64px; height: 48px;
+      object-fit: cover; border-radius: 6px;
+      background: #F1F5F9; border: 1px solid #E2E8F0;
+      flex-shrink: 0;
+    }
+    .chunk-thumb-ph {
+      width: 64px; height: 48px;
+      background: #F1F5F9; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: #CBD5E1; flex-shrink: 0;
+    }
+    .chunk-info { flex: 1; min-width: 0; }
+    .chunk-id { font-size: 13px; font-weight: 600; color: #1E293B; }
+    .chunk-meta { font-size: 11px; color: #64748B; margin-top: 3px; }
+    .chunk-badge {
+      display: inline-block; background: #F0FDF4; color: #16A34A;
+      font-size: 10px; font-weight: 600; padding: 2px 7px;
+      border-radius: 10px; margin-top: 4px;
+    }
+    .chunk-badge.faces { background: #FEF9C3; color: #854D0E; }
+
+    /* ── 계층 트리 (월/일/오전오후/시/10분) ── */
+    .tree-folder { margin: 1px 0; }
+    .tree-folder > summary {
+      cursor: pointer; padding: 6px 12px; font-size: 13px; font-weight: 600;
+      color: #475569; list-style: none; user-select: none; border-radius: 6px;
+    }
+    .tree-folder > summary::-webkit-details-marker { display: none; }
+    .tree-folder > summary:hover { background: #F8FAFC; }
+    .tree-indent { margin-left: 12px; border-left: 1px solid #E2E8F0; padding-left: 2px; }
+    .tree-chunk {
+      padding: 8px 12px; margin: 1px 0; cursor: pointer; border-radius: 6px;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .tree-chunk:hover { background: #F8FAFC; }
+    .tree-chunk.selected { background: #EFF6FF; border-left: 3px solid #3B82F6; }
+    .tree-chunk-time { font-size: 13px; font-weight: 600; color: #1E293B; }
+    .tree-chunk-meta { font-size: 11px; color: #64748B; }
+
+    .empty-state {
+      padding: 48px 20px; text-align: center;
+      color: #94A3B8; font-size: 13px;
+    }
+    .empty-icon { font-size: 36px; margin-bottom: 12px; }
+
+    /* ── 상세 패널 ── */
+    .panel-detail {
+      flex: 1; overflow-y: auto; padding: 24px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+
+    .detail-placeholder {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #94A3B8; gap: 12px;
+    }
+    .detail-placeholder .ph-icon { font-size: 48px; opacity: 0.4; }
+    .detail-placeholder .ph-text { font-size: 14px; }
+
+    .detail-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 12px;
+    }
+    .detail-title { font-size: 18px; font-weight: 700; color: #1E293B; }
+    .detail-sub { font-size: 13px; color: #64748B; margin-top: 3px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 8px; font-size: 13px;
+      font-family: inherit; font-weight: 600; cursor: pointer;
+      border: none; transition: all 0.15s;
+    }
+    .btn-primary { background: #3B82F6; color: #fff; }
+    .btn-primary:hover { background: #2563EB; }
+    .btn-ghost { background: #F1F5F9; color: #475569; }
+    .btn-ghost:hover { background: #E2E8F0; }
+
+    /* ── 프레임 그리드 ── */
+    .section-title {
+      font-size: 13px; font-weight: 600; color: #475569;
+      margin-bottom: 12px;
+    }
+    .frame-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .frame-card {
+      background: #fff; border: 1px solid #E2E8F0;
+      border-radius: 10px; overflow: hidden;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .frame-card:hover { box-shadow: 0 4px 12px rgba(59,130,246,0.15); border-color: #93C5FD; }
+    .frame-card.selected { border-color: #3B82F6; box-shadow: 0 0 0 2px #BFDBFE; }
+    .frame-card img {
+      width: 100%; aspect-ratio: 4/3;
+      object-fit: cover; display: block;
+    }
+    .frame-card-info {
+      padding: 6px 10px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .frame-id { font-size: 11px; color: #64748B; font-weight: 600; }
+    .face-count-badge {
+      font-size: 10px; background: #FEF9C3; color: #854D0E;
+      padding: 1px 6px; border-radius: 8px; font-weight: 600;
+    }
+    .face-count-badge.zero { background: #F1F5F9; color: #94A3B8; }
+
+    /* ── 복원 결과 영역 ── */
+    .restore-panel {
+      background: #fff; border: 1px solid #E2E8F0;
+      border-radius: 14px; padding: 20px;
+    }
+    .restore-panel-title { font-size: 14px; font-weight: 700; color: #1E293B; margin-bottom: 14px; }
+    .restore-img-wrap {
+      width: 100%; max-width: 480px;
+      background: #F8FAFC; border-radius: 8px; overflow: hidden;
+      border: 1px solid #E2E8F0;
+    }
+    .restore-img-wrap img { width: 100%; display: block; }
+
+    /* ── 비밀번호 모달 ── */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(15,23,42,0.5); backdrop-filter: blur(4px);
+      z-index: 200; align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 16px;
+      padding: 28px; width: 380px; max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .modal-desc { font-size: 13px; color: #64748B; margin-bottom: 20px; }
+    .modal-input {
+      width: 100%; padding: 10px 14px;
+      border: 1px solid #E2E8F0; border-radius: 8px;
+      font-size: 14px; font-family: inherit;
+      margin-bottom: 16px; outline: none;
+      transition: border-color 0.15s;
+    }
+    .modal-input:focus { border-color: #3B82F6; }
+    .modal-error { font-size: 12px; color: #DC2626; margin-bottom: 12px; display: none; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
+
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid #fff; border-top-color: transparent;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── 정보 칩 ── */
+    .info-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+    .chip {
+      font-size: 12px; padding: 4px 12px; border-radius: 10px;
+      font-weight: 600;
+    }
+    .chip-blue { background: #EFF6FF; color: #2563EB; }
+    .chip-green { background: #F0FDF4; color: #16A34A; }
+    .chip-yellow { background: #FEF9C3; color: #854D0E; }
+    .chip-red { background: #FEF2F2; color: #DC2626; }
+  </style>
+</head>
+<body>
+
+<!-- 상단 바 -->
+<div class="topbar">
+  <div class="topbar-logo">🔒 SecureFace<span>-RX</span></div>
+  <nav class="topbar-nav">
+    <a href="/">실시간 모니터링</a>
+    <a href="/assets" class="active">보호 자산</a>
+    <a href="/employees">🔐 관리자</a>
+  </nav>
+</div>
+
+<div id="gpuBadge" style="margin:12px 16px 0; font-size:13px;"></div>
+<div id="saveBanner" style="display:none; margin:12px 16px 0; padding:12px 16px; background:#1e293b; border:1px solid #334155; border-radius:10px; color:#e2e8f0; font-size:14px;"></div>
+
+<div class="page">
+  <!-- 청크 목록 -->
+  <div class="panel-list">
+    <div class="panel-list-header">
+      녹화 청크
+      <span class="chunk-count" id="chunkCount">로딩 중...</span>
+    </div>
+    <div style="padding:8px 12px;">
+      <input id="chunkSearch" placeholder="🔍 시각 검색 (예: 14 또는 14-00)" oninput="renderChunkList()"
+             style="width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px;">
+    </div>
+    <div id="chunkList"></div>
+  </div>
+
+  <!-- 상세 패널 -->
+  <div class="panel-detail" id="detailPanel">
+    <div class="detail-placeholder">
+      <div class="ph-icon">📂</div>
+      <div class="ph-text">좌측에서 청크를 선택하세요</div>
+    </div>
+  </div>
+</div>
+
+<!-- 비밀번호 모달 (SCR-005 / MOD-001) -->
+<div class="modal-backdrop" id="pwModal">
+  <div class="modal">
+    <div class="modal-title">🔑 복원 인증</div>
+    <div class="modal-desc"><strong id="modalFrameId"></strong> 복원하려면<br>PSF 비밀번호를 입력하세요. (영상 복원은 시간이 걸립니다)</div>
+    <input type="password" class="modal-input" id="pwInput" placeholder="비밀번호 입력" />
+    <div class="modal-error" id="modalError">비밀번호가 올바르지 않거나 복원에 실패했습니다.</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" id="restoreBtn" onclick="doRestore()">
+        <span id="restoreBtnText">복원</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let chunks = [];
+  let selectedChunk = null;
+  let selectedFrame = null;
+
+  // ── 보호본 미리보기 재생 (저장된 익명화 프레임을 영상처럼 순차 재생) ──
+  let previewChunk = null, previewFrames = [], previewIdx = 0, previewTimer = null;
+
+  function stopPreview() {
+    if (previewTimer) { clearInterval(previewTimer); previewTimer = null; }
+  }
+  function startPreview() {
+    stopPreview();
+    if (!previewFrames.length) return;
+    const btn = document.getElementById('previewPlayBtn');
+    if (btn) btn.innerText = '⏸ 일시정지';
+    previewTimer = setInterval(() => {
+      const img = document.getElementById('previewPlayer');
+      if (!img) { stopPreview(); return; }
+      img.src = `/api/frame/${encodeURIComponent(previewChunk)}/${previewFrames[previewIdx]}`;
+      previewIdx = (previewIdx + 1) % previewFrames.length;
+    }, 100);  // 약 10fps
+  }
+  function togglePreview() {
+    const btn = document.getElementById('previewPlayBtn');
+    if (previewTimer) { stopPreview(); if (btn) btn.innerText = '▶ 재생'; }
+    else startPreview();
+  }
+
+  // ── 청크 목록 로드 ──
+  async function loadChunks() {
+    try {
+      const data = await fetch('/api/assets').then(r => r.json());
+      chunks = data;
+      renderChunkList();
+    } catch {
+      document.getElementById('chunkCount').textContent = '오류';
+    }
+  }
+
+  // "14-00-20" → "14:00:20" (청크 시작 시각)
+  function chunkTimeLabel(key) {
+    const p = key.split('-');
+    const pad = n => (parseInt(n) || 0).toString().padStart(2, '0');
+    if (p.length >= 3) return `${pad(p[0])}:${pad(p[1])}:${pad(p[2])}`;
+    if (p.length === 2) return `${pad(p[0])}:${pad(p[1])}`;
+    return key;
+  }
+
+  function chunkDurationLabel(seconds) {
+    const s = Number(seconds || 0);
+    if (!s) return '길이 정보 없음';
+    if (s >= 60) return `${Math.floor(s / 60)}분 ${Math.round(s % 60)}초`;
+    return `${Math.round(s)}초`;
+  }
+
+  function renderChunkList() {
+    const el = document.getElementById('chunkList');
+    const q = (document.getElementById('chunkSearch')?.value || '').trim();
+    const list = q ? chunks.filter(c => (c.display_name || c.chunk_id || '').includes(q)) : chunks;
+    document.getElementById('chunkCount').textContent = list.length + '개';
+    if (list.length === 0) {
+      el.innerHTML = `<div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <div>${q ? '검색 결과가 없습니다.' : '아직 녹화된 청크가 없습니다.<br>카메라 활성화 후 저장됩니다.'}</div>
+      </div>`;
+      return;
+    }
+
+    // chunk_id("월__일__오전오후__시__10분")를 계층 트리로 구성
+    const tree = {};
+    list.forEach(c => {
+      const parts = (c.display_name || c.chunk_id || '').replaceAll('/', '__').split('__');
+      let node = tree;
+      parts.slice(0, -1).forEach(p => {
+        node[p] = node[p] || { __children: {} };
+        node = node[p].__children;
+      });
+      node['__leaf_' + parts[parts.length - 1]] = { __chunk: c, __key: parts[parts.length - 1] };
+    });
+
+    el.innerHTML = renderTree(tree);
+  }
+
+  function renderTree(node) {
+    let html = '';
+    for (const key in node) {
+      const val = node[key];
+      if (val.__chunk) {
+        const c = val.__chunk;
+        const faces = c.total_faces ?? 0;
+        const sel = selectedChunk === c.chunk_id ? 'selected' : '';
+        html += `
+          <div class="tree-chunk ${sel}" onclick="selectChunk('${c.chunk_id}', this)">
+            <span class="tree-chunk-time">🕐 ${chunkTimeLabel(val.__key)} ${c.complete ? '' : '🔴'}</span>
+            <span class="tree-chunk-meta">${chunkDurationLabel(c.duration_seconds)} · ${c.frame_count ?? '-'}프레임 · 얼굴 ${faces}건${c.complete ? '' : ' · 녹화 중'}</span>
+          </div>`;
+      } else {
+        html += `
+          <details class="tree-folder">
+            <summary>📁 ${key}</summary>
+            <div class="tree-indent">${renderTree(val.__children)}</div>
+          </details>`;
+      }
+    }
+    return html;
+  }
+
+  // ── 청크 선택 → 상세 로드 ──
+  async function selectChunk(chunkId, el) {
+    selectedChunk = chunkId;
+    selectedFrame = null;
+    document.querySelectorAll('.tree-chunk').forEach(e => e.classList.remove('selected'));
+    if (el) el.classList.add('selected');
+    document.getElementById('detailPanel').innerHTML = `
+      <div class="detail-placeholder"><div class="ph-icon">⏳</div><div class="ph-text">로딩 중...</div></div>`;
+
+    try {
+      const d = await fetch(`/api/assets/${chunkId}`).then(r => r.json());
+      renderDetail(d);
+    } catch {
+      document.getElementById('detailPanel').innerHTML = `
+        <div class="detail-placeholder"><div class="ph-icon">⚠️</div><div class="ph-text">상세 정보를 불러오지 못했습니다.</div></div>`;
+    }
+  }
+
+  function renderDetail(d) {
+    stopPreview();
+    if(d.format === 'selective') { location.href='/selective/?chunk='+encodeURIComponent(d.chunk_id); return; }
+    if(d.format === 'raw') { document.getElementById('detailPanel').innerHTML='<h2>과거 저장 형식</h2><p>이 영상에는 집단별 복원 데이터가 없습니다.</p>관리자 메뉴의 원본 복원에서 확인하세요.'; return; }
+    const hasFaces = (d.total_faces ?? 0) > 0;
+
+    // 보호본 미리보기(완성 청크만): 저장된 익명화 프레임을 영상처럼 순차 재생
+    previewChunk = d.chunk_id;
+    previewFrames = [];
+    previewIdx = 0;
+    if (d.complete && Array.isArray(d.frames) && d.frames.length) {
+      const frames = d.frames;
+      const maxN = 300;  // 미리보기 최대 프레임(요청 부하 제한)
+      const step = Math.max(1, Math.floor(frames.length / maxN));
+      for (let i = 0; i < frames.length && previewFrames.length < maxN; i += step) {
+        previewFrames.push(frames[i].frame_id);
+      }
+    }
+    const hasPreview = previewFrames.length > 0;
+    const previewHtml = hasPreview ? `
+      <div class="restore-panel" id="previewPanel" style="display:block; margin-top:12px;">
+        <div class="restore-panel-title">🎬 보호본 미리보기</div>
+        <div class="restore-img-wrap">
+          <img id="previewPlayer" style="width:100%; border-radius:8px; background:#000; display:block;">
+        </div>
+        <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+          <button class="btn btn-ghost" id="previewPlayBtn" onclick="togglePreview()">⏸ 일시정지</button>
+          <span style="color:#94a3b8; font-size:13px;">저장된 익명화(보호본) 영상입니다. 복원 전 상태예요.</span>
+        </div>
+      </div>` : '';
+
+    const html = `
+      <div class="detail-header">
+        <div>
+          <div class="detail-title">${d.display_name || d.chunk_id}</div>
+          <div class="detail-sub">시작: ${d.start_time ?? '알 수 없음'} · 마지막 업데이트: ${d.last_update ?? '-'}</div>
+        </div>
+        ${!hasFaces ? '' : (d.complete
+          ? `<button class="btn btn-primary" onclick="openGpuModal('${d.chunk_id}')">🚀 GPU 복원</button>`
+          : `<span class="chip chip-red">🔴 저장 중 · 저장 완료 후 복원 가능</span>`)}
+      </div>
+      <div class="info-chips">
+        <span class="chip chip-blue">${d.frame_count ?? '-'} 프레임</span>
+        <span class="chip ${hasFaces ? 'chip-yellow' : 'chip-green'}">얼굴 ${d.total_faces ?? '-'}건</span>
+        ${d.complete
+          ? (hasFaces ? '<span class="chip chip-red">복원 가능</span>' : '<span class="chip chip-green">복원 불필요</span>')
+          : '<span class="chip chip-red">저장 중</span>'}
+      </div>
+
+      ${previewHtml}
+
+      <div class="restore-panel" id="restoreResult" style="display:none">
+        <div class="restore-panel-title">복원 영상 (SCR-005)</div>
+        <div class="restore-img-wrap">
+          <video id="restoredVideo" controls autoplay loop style="width:100%;"></video>
+        </div>
+        <div style="margin-top:8px;">
+          <a id="downloadRestored" class="btn btn-primary" download="restored.mp4" style="text-decoration:none;">⬇ 복원 영상 다운로드</a>
+        </div>
+      </div>
+    `;
+    document.getElementById('detailPanel').innerHTML = html;
+    if (hasPreview) startPreview();
+  }
+
+  let restoreMode = 'video';
+
+  // ── 로컬(라즈베리파이 CPU) 복원 모달 ──
+  function openVideoModal(chunkId) {
+    selectedChunk = chunkId;
+    restoreMode = 'video';
+    openModal('이 청크를 영상으로 (로컬 CPU)');
+  }
+
+  // ── GPU(Modal) 복원 모달 ──
+  function openGpuModal(chunkId) {
+    selectedChunk = chunkId;
+    restoreMode = 'gpu';
+    openModal('이 청크를 GPU로 복원 (빠름)');
+  }
+
+  // ── 비밀번호 모달 ──
+  function openModal(targetLabel) {
+    document.getElementById('modalFrameId').textContent = targetLabel;
+    document.getElementById('pwInput').value = '';
+    document.getElementById('modalError').style.display = 'none';
+    document.getElementById('restoreBtnText').textContent = '복원';
+    document.getElementById('pwModal').classList.add('open');
+    setTimeout(() => document.getElementById('pwInput').focus(), 50);
+  }
+
+  function closeModal() {
+    document.getElementById('pwModal').classList.remove('open');
+  }
+
+  async function doRestore() {
+    const pw = document.getElementById('pwInput').value;
+    if (!pw) return;
+
+    const btn = document.getElementById('restoreBtn');
+    const txt = document.getElementById('restoreBtnText');
+    btn.disabled = true;
+    const label = restoreMode === 'gpu' ? 'GPU 복원 중...' : '복원 중...';
+    txt.innerHTML = `<span class="spinner"></span> ${label}`;
+    document.getElementById('modalError').style.display = 'none';
+
+    const endpoint = restoreMode === 'gpu'
+      ? '/api/restore_video_gpu' : '/api/restore_video';
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({chunk_id: selectedChunk, password: pw}),
+      });
+      if (!res.ok) throw new Error('서버 오류');
+      const blob = await res.blob();
+      closeModal();
+      showRestoredVideo(URL.createObjectURL(blob));
+    } catch {
+      document.getElementById('modalError').style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      txt.textContent = '복원';
+    }
+  }
+
+  function showRestoredVideo(url) {
+    // 복원 완료 → 보호본 미리보기 정지·숨김 (원본만 표시, 둘이 같이 안 뜨게)
+    stopPreview();
+    const pp = document.getElementById('previewPanel');
+    if (pp) pp.style.display = 'none';
+    const panel = document.getElementById('restoreResult');
+    panel.style.display = 'block';
+    const vid = document.getElementById('restoredVideo');
+    vid.src = url;
+    const dl = document.getElementById('downloadRestored');
+    if (dl) dl.href = url;
+    panel.scrollIntoView({behavior: 'smooth'});
+  }
+
+  // ── 키보드 닫기 ──
+  document.getElementById('pwInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doRestore();
+    if (e.key === 'Escape') closeModal();
+  });
+  document.getElementById('pwModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+
+  // ── 저장 진행률(ETA) 배너 ──
+  async function pollProgress() {
+    try {
+      const p = await fetch('/api/save_progress').then(r => r.json());
+      const el = document.getElementById('saveBanner');
+      if (p && p.in_progress) {
+        const pct = p.target ? Math.floor(100 * p.saved / p.target) : 0;
+        let eta = '계산 중...';
+        if (p.eta_seconds != null) {
+          const m = Math.floor(p.eta_seconds / 60), s = p.eta_seconds % 60;
+          eta = m > 0 ? `약 ${m}분 ${s}초` : `약 ${s}초`;
+        }
+        el.style.display = 'block';
+        el.innerHTML = `⏳ <b>현재 청크 저장 중</b> — ${p.saved ?? '-'} / ${p.target ?? '-'} 프레임 (${pct ?? '-'}%) · 완료까지 ${eta ?? '계산 중'} · ${p.fps ?? '-'}fps`;
+      } else {
+        el.style.display = 'none';
+      }
+    } catch {}
+  }
+
+  // ── GPU 서버 연결 상태 배지 ──
+  async function pollGpu() {
+    try {
+      const g = await fetch('/api/gpu_status').then(r => r.json());
+      const el = document.getElementById('gpuBadge');
+      if (!g.configured) { el.innerHTML = ''; return; }
+      if (g.connected) {
+        el.innerHTML = `<span style="padding:3px 10px; border-radius:999px; background:#dcfce7; color:#166534;">🟢 GPU 서버 연결됨${g.device ? ' · ' + g.device : ''}</span>`;
+      } else {
+        el.innerHTML = `<span style="padding:3px 10px; border-radius:999px; background:#fee2e2; color:#991b1b;">🔴 GPU 서버 끊김 (로컬 처리 중)</span>`;
+      }
+    } catch {}
+  }
+
+  // ── 초기 로드 + 주기 갱신 ──
+  loadChunks();
+  setInterval(loadChunks, 10000);
+  pollProgress();
+  setInterval(pollProgress, 3000);
+  pollGpu();
+  setInterval(pollGpu, 5000);
+</script>
+
+</body>
+</html>

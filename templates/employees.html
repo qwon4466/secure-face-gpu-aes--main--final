@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureFace-RX — 사원 관리</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; background: #F1F5F9; color: #1E293B; min-height: 100vh; }
+
+    /* ── 상단 바 ── */
+    .topbar {
+      background: #fff; border-bottom: 1px solid #E2E8F0;
+      padding: 0 24px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .topbar-logo { font-size: 17px; font-weight: 700; color: #3B82F6; letter-spacing: -0.3px; }
+    .topbar-logo span { color: #1E293B; font-weight: 400; }
+    .topbar-nav a {
+      text-decoration: none; color: #64748B;
+      margin-left: 4px; font-size: 14px;
+      padding: 6px 14px; border-radius: 8px; transition: background 0.15s;
+    }
+    .topbar-nav a:hover { background: #F1F5F9; color: #1E293B; }
+    .topbar-nav a.active { background: #EFF6FF; color: #3B82F6; font-weight: 600; }
+
+    /* ── 콘텐츠 ── */
+    .content { max-width: 860px; margin: 0 auto; padding: 28px 24px; }
+
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .page-title { font-size: 20px; font-weight: 700; color: #1E293B; }
+    .page-sub { font-size: 13px; color: #64748B; margin-top: 2px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 8px; font-size: 13px;
+      font-family: inherit; font-weight: 600; cursor: pointer;
+      border: none; transition: all 0.15s;
+    }
+    .btn-primary { background: #3B82F6; color: #fff; }
+    .btn-primary:hover { background: #2563EB; }
+    .btn-ghost { background: #F1F5F9; color: #475569; }
+    .btn-ghost:hover { background: #E2E8F0; }
+    .btn-danger { background: #FEF2F2; color: #DC2626; }
+    .btn-danger:hover { background: #FEE2E2; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* ── 검색 바 ── */
+    .search-bar {
+      width: 100%; padding: 10px 14px 10px 38px;
+      border: 1px solid #E2E8F0; border-radius: 10px;
+      font-size: 14px; font-family: inherit;
+      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 24 24' stroke='%2394A3B8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") 12px center / 16px no-repeat;
+      outline: none; transition: border-color 0.15s;
+      margin-bottom: 16px;
+    }
+    .search-bar:focus { border-color: #3B82F6; }
+
+    /* ── 사원 테이블 ── */
+    .card {
+      background: #fff; border: 1px solid #E2E8F0;
+      border-radius: 14px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #F8FAFC; border-bottom: 1px solid #E2E8F0; }
+    th {
+      padding: 11px 16px; text-align: left;
+      font-size: 11px; font-weight: 700; color: #64748B;
+      letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    tbody tr { border-bottom: 1px solid #F1F5F9; transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #F8FAFC; }
+    td { padding: 13px 16px; font-size: 14px; vertical-align: middle; }
+
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: #EFF6FF; color: #3B82F6;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 700;
+    }
+    .name-cell { display: flex; align-items: center; gap: 12px; }
+
+    .group-badge {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      padding: 3px 10px; border-radius: 10px;
+    }
+    .group-A { background: #EFF6FF; color: #2563EB; }
+    .group-B { background: #F0FDF4; color: #16A34A; }
+    .group-C { background: #FEF9C3; color: #854D0E; }
+    .group-D { background: #FDF4FF; color: #9333EA; }
+    .group-default { background: #F1F5F9; color: #475569; }
+
+    .empty-state {
+      padding: 60px 24px; text-align: center;
+      color: #94A3B8;
+    }
+    .empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-text { font-size: 14px; }
+
+    /* ── 삭제 확인 모달 ── */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(15,23,42,0.5); backdrop-filter: blur(4px);
+      z-index: 200; align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 16px;
+      padding: 28px; width: 360px; max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .modal-icon { font-size: 32px; margin-bottom: 12px; }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .modal-desc { font-size: 13px; color: #64748B; margin-bottom: 24px; line-height: 1.6; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── 통계 칩 ── */
+    .stat-row {
+      display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .stat-chip {
+      background: #fff; border: 1px solid #E2E8F0;
+      border-radius: 10px; padding: 10px 16px;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .stat-chip-icon { font-size: 20px; }
+    .stat-chip-label { font-size: 11px; color: #64748B; font-weight: 500; letter-spacing: 0.3px; }
+    .stat-chip-value { font-size: 20px; font-weight: 700; color: #1E293B; line-height: 1.2; }
+
+    .toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 8px; z-index: 999;
+    }
+    .toast {
+      background: #1E293B; color: #fff;
+      padding: 12px 18px; border-radius: 10px; font-size: 13px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      animation: slideIn 0.2s ease;
+    }
+    .toast.success { background: #16A34A; }
+    .toast.error { background: #DC2626; }
+    @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+
+<!-- 상단 바 -->
+<div class="topbar">
+  <div class="topbar-logo">🔒 SecureFace<span>-RX</span></div>
+  <nav class="topbar-nav">
+    <a href="/">실시간 모니터링</a>
+    <a href="/assets">보호 자산</a>
+    <a href="/employees" class="active">🔐 관리자</a>
+  </nav>
+</div>
+
+<!-- 관리자 서브 메뉴 (사원 관리 / 사원 등록) -->
+<div style="display:flex; gap:8px; align-items:center; padding:10px 24px; background:#0f172a; border-bottom:1px solid #1e293b;">
+  <span style="color:#94a3b8; font-weight:600; margin-right:6px; font-size:14px;">관리자 메뉴</span>
+  <a href="/employees" style="padding:7px 14px; border-radius:6px; background:#3b82f6; color:#fff; text-decoration:none; font-size:14px;">👥 사원 관리</a>
+  <a href="/register" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">＋ 사원 등록</a>
+  <a href="/audit" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">📋 감사 로그</a>
+  
+  <!-- 👇 새로 추가된 원본 복원 탭 👇 -->
+  <a href="/decryption_page" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">🗂️ 원본 복원</a>
+<a href="/selective/" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">선택적 복원</a>
+  
+  <button onclick="fetch('/api/admin/logout',{method:'POST'}).then(()=>location.href='/admin/login')" style="margin-left:auto; padding:7px 14px; border-radius:6px; background:#475569; color:#fff; border:none; cursor:pointer; font-size:14px;">🚪 로그아웃</button>
+</div>
+
+<div class="content">
+  <div class="page-header">
+    <div>
+      <div class="page-title">사원 관리</div>
+      <div class="page-sub">등록된 사원 목록을 확인하고 관리합니다</div>
+    </div>
+  </div>
+
+  <!-- 통계 칩 -->
+  <div class="stat-row">
+    <div class="stat-chip">
+      <div class="stat-chip-icon">👤</div>
+      <div>
+        <div class="stat-chip-label">전체 사원</div>
+        <div class="stat-chip-value" id="totalCount">-</div>
+      </div>
+    </div>
+    <div class="stat-chip">
+      <div class="stat-chip-icon">🏷️</div>
+      <div>
+        <div class="stat-chip-label">등록 그룹</div>
+        <div class="stat-chip-value" id="groupCount">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 검색 -->
+  <input class="search-bar" type="text" id="searchInput" placeholder="이름 또는 그룹으로 검색..." oninput="filterTable()">
+
+  <!-- 사원 테이블 -->
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>사원</th>
+          <th>그룹</th>
+          <th>등록 각도</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="empTable">
+        <tr><td colspan="4">
+          <div class="empty-state">
+            <div class="empty-icon">⏳</div>
+            <div class="empty-text">로딩 중...</div>
+          </div>
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="modal-backdrop" id="delModal">
+  <div class="modal">
+    <div class="modal-icon">⚠️</div>
+    <div class="modal-title">사원 삭제</div>
+    <div class="modal-desc">
+      <strong id="delName"></strong> 사원의 모든 등록 정보를 삭제합니다.<br>
+      이 작업은 되돌릴 수 없습니다.
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDelModal()">취소</button>
+      <button class="btn btn-danger" id="delConfirmBtn" onclick="confirmDelete()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  let allEmployees = [];
+  let pendingDeleteName = null;
+
+  // ── 데이터 로드 ──
+  async function loadEmployees() {
+    try {
+      const data = await fetch('/api/users').then(r => r.json());
+      allEmployees = data;
+      renderStats();
+      renderTable(allEmployees);
+    } catch {
+      showToast('사원 목록을 불러오지 못했습니다.', 'error');
+    }
+  }
+
+  function renderStats() {
+    document.getElementById('totalCount').textContent = allEmployees.length;
+    const groups = new Set(allEmployees.map(e => e.group));
+    document.getElementById('groupCount').textContent = groups.size;
+  }
+
+  function renderTable(list) {
+    const tbody = document.getElementById('empTable');
+    if (list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4">
+        <div class="empty-state">
+          <div class="empty-icon">👤</div>
+          <div class="empty-text">등록된 사원이 없습니다.<br><a href="/register" style="color:#3B82F6">사원 등록</a>으로 추가하세요.</div>
+        </div>
+      </td></tr>`;
+      return;
+    }
+
+    // 각도 정보 집계 (이름_정면 / 이름_측면1(좌) / 이름_측면2(우))
+    const angleMap = {};
+    list.forEach(e => {
+      if (!angleMap[e.name]) angleMap[e.name] = {group: e.group, angles: []};
+    });
+
+    tbody.innerHTML = list.map(e => {
+      const initial = (e.name || '?')[0].toUpperCase();
+      const groupClass = 'group-' + (e.group || 'default');
+      return `<tr>
+        <td>
+          <div class="name-cell">
+            <div class="avatar">${initial}</div>
+            <span style="font-weight:600">${e.name}</span>
+          </div>
+        </td>
+        <td><span class="group-badge ${groupClass}">${e.group || '-'}</span></td>
+        <td style="color:#64748B;font-size:13px">정면 · 좌측면 · 우측면</td>
+        <td style="text-align:right">
+          <button class="btn btn-danger btn-sm" onclick="openDelModal('${e.name}')">삭제</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── 검색 ──
+  function filterTable() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    const filtered = allEmployees.filter(e =>
+      e.name.toLowerCase().includes(q) || (e.group || '').toLowerCase().includes(q)
+    );
+    renderTable(filtered);
+  }
+
+  // ── 삭제 모달 ──
+  function openDelModal(name) {
+    pendingDeleteName = name;
+    document.getElementById('delName').textContent = name;
+    document.getElementById('delModal').classList.add('open');
+  }
+  function closeDelModal() {
+    document.getElementById('delModal').classList.remove('open');
+    pendingDeleteName = null;
+  }
+
+  async function confirmDelete() {
+    if (!pendingDeleteName) return;
+    const btn = document.getElementById('delConfirmBtn');
+    btn.disabled = true;
+    btn.textContent = '삭제 중...';
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(pendingDeleteName)}`, {method: 'DELETE'});
+      if (!res.ok) throw new Error();
+      showToast(`${pendingDeleteName} 삭제 완료`, 'success');
+      closeDelModal();
+      await loadEmployees();
+    } catch {
+      showToast('삭제에 실패했습니다.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '삭제';
+    }
+  }
+
+  // 모달 바깥 클릭 닫기
+  document.getElementById('delModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeDelModal();
+  });
+
+  // ── 토스트 ──
+  function showToast(msg, type = '') {
+    const container = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+
+  // ── 초기 로드 ──
+  loadEmployees();
+  setInterval(loadEmployees, 15000);
+</script>
+
+</body>
+</html>

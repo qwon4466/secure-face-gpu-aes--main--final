@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>보안 구역 인원 등록 시스템</title>
+    <style>
+        /* ⭐️ 라이트 모드로 전체 배경 및 글자색 변경 */
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            background-color: #f4f7f6; /* 밝은 회색 배경 */
+            color: #333333; /* 어두운 회색 글자 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        /* 로그인 화면 밝게 변경 */
+        #loginScreen {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 300px;
+        }
+        #loginScreen input { 
+            width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #cccccc; 
+            border-radius: 5px; background-color: #f8f9fa; color: #333333; 
+        }
+        #loginScreen button { 
+            width: 100%; padding: 10px; background-color: #7289da; color: white; 
+            border: none; border-radius: 5px; font-size: 16px; cursor: pointer; margin-top: 15px; 
+        }
+        #loginScreen button:hover { background-color: #5b6eae; }
+        
+        #mainScreen { display: none; text-align: center; }
+        video, img { border: 3px solid #7289da; border-radius: 10px; margin-bottom: 20px; background-color: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+        /* 인풋 창 밝게 변경 */
+        input[type="text"], select { 
+            padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #cccccc; background-color: #ffffff; color: #333333;
+        }
+        
+        button.capture-btn {
+            padding: 12px 24px; font-size: 16px; font-weight: bold; background-color: #43b581; color: white; border: none; border-radius: 5px; cursor: pointer; transition: 0.3s;
+        }
+        button.capture-btn:hover { background-color: #3ca374; }
+        button.capture-btn:disabled { background-color: #a0a5ab; cursor: not-allowed; }
+
+        button.reset-btn {
+            padding: 12px 24px; font-size: 16px; font-weight: bold; background-color: #7289da; color: white; border: none; border-radius: 5px; cursor: pointer; display: none; transition: 0.3s;
+        }
+        button.reset-btn:hover { background-color: #5b6eae; }
+
+        /* ⭐️ 관제화면으로 돌아가기 버튼 스타일 */
+        button.return-btn {
+            padding: 12px 24px; font-size: 16px; font-weight: bold; background-color: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; display: none; transition: 0.3s; margin-left: 10px;
+        }
+        button.return-btn:hover { background-color: #5a6268; }
+        
+        #statusMessage { margin-top: 20px; font-size: 18px; font-weight: bold; min-height: 27px; }
+        /* 안내 문구 기본 색상을 라이트 모드에 맞게 조정 */
+        #instructionText { font-size: 22px; color: #28a745; margin-bottom: 15px; font-weight: bold; transition: color 0.3s; }
+
+        #progressContainer {
+            width: 100%; max-width: 640px; height: 12px; background-color: #e9ecef;
+            border-radius: 6px; margin: 0 auto 20px auto; overflow: hidden;
+            display: none; border: 1px solid #ced4da;
+        }
+        #progressBar {
+            height: 100%; width: 0%; background-color: #faa61a;
+            transition: width 0.1s linear;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loginScreen">
+        <h2>보안 관리자 로그인</h2>
+        <input type="text" id="adminId" placeholder="아이디">
+        <input type="password" id="adminPw" placeholder="비밀번호">
+        <button onclick="checkLogin()">로그인</button>
+        <div id="loginError" style="color: #dc3545; margin-top: 10px; font-size: 14px;"></div>
+    </div>
+
+    <div id="mainScreen">
+        <div style="position:fixed; top:0; left:0; right:0; display:flex; gap:8px; align-items:center; padding:10px 24px; background:#0f172a; border-bottom:1px solid #1e293b; z-index:100;">
+          <span style="color:#94a3b8; font-weight:600; margin-right:6px; font-size:14px;">관리자 메뉴</span>
+          <a href="/employees" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">👥 사원 관리</a>
+          <a href="/register" style="padding:7px 14px; border-radius:6px; background:#3b82f6; color:#fff; text-decoration:none; font-size:14px;">＋ 사원 등록</a>
+          
+          <a href="/audit" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">📋 감사 로그</a>
+          <a href="/decryption_page" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">🗂️ 원본 복원</a>
+<a href="/selective/" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">선택적 복원</a>
+          <button onclick="logout()" style="margin-left:auto; padding:7px 14px; border-radius:6px; background:#475569; color:#fff; border:none; cursor:pointer; font-size:14px;">🚪 로그아웃</button>
+        </div>
+        <h2>보안 구역 인원 등록</h2>
+        <div id="welcomeMessage" style="color: #7289da; font-size: 20px; font-weight: bold; margin-bottom: 20px;"></div>
+        
+        <div class="controls">
+            <input type="text" id="nameInput" placeholder="이름 입력 (예: 홍길동)">
+            <select id="groupSelect">
+                <option value="허가">허가 (Allowed)</option>
+                <option value="비허가">비허가 (Denied)</option>
+            </select>
+        </div>
+
+        <div id="instructionText">정면을 본 상태로 아래 버튼을 눌러주세요.</div>
+
+        <div id="progressContainer">
+            <div id="progressBar"></div>
+        </div>
+
+        <img id="video" width="640" height="480" alt="카메라 스트리밍">
+        
+        <br>
+        <button class="capture-btn" id="captureBtn" onclick="startContinuousCapture()">🎥 연속 촬영 시작</button>
+        <button class="reset-btn" id="resetBtn" onclick="resetForNewPerson()">🔄 다른 인원 새로 등록하기</button>
+        <button class="return-btn" id="returnBtn" onclick="location.href='/'">🏠 관제화면으로 돌아가기</button>
+
+        <div id="statusMessage"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const instructionText = document.getElementById('instructionText');
+        const statusMessage = document.getElementById('statusMessage');
+        const nameInput = document.getElementById('nameInput');
+        const captureBtn = document.getElementById('captureBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const returnBtn = document.getElementById('returnBtn'); // ⭐️ 복귀 버튼 변수 추가
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        
+        let progressInterval;
+
+        // 서버에서 관리자 인증을 완료한 뒤에만 이 페이지에 접근할 수 있으므로,
+        // 클라이언트 로그인 화면은 건너뛰고 바로 등록 화면을 표시한다.
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainScreen').style.display = 'block';
+            document.getElementById('welcomeMessage').innerText = "🎉 환영합니다, 관리자님!";
+            startCamera();
+        });
+
+        async function logout() {
+            try { await fetch('/api/admin/logout', { method: 'POST' }); } catch (e) {}
+            location.href = '/admin/login';
+        }
+
+        // 서버(RealSense) 카메라 원본 스냅샷을 폴링해서 표시
+        function startCamera() {
+            function refresh() {
+                const next = new Image();
+                next.onload = () => { video.src = next.src; };
+                // 100ms 간격으로 서버에서 이미지를 당겨옴
+                next.src = '/snapshot/raw?t=' + Date.now();
+            }
+            refresh();
+            setInterval(refresh, 100);
+        }
+
+        function startContinuousCapture() {
+            const name = nameInput.value.trim();
+            const group = document.getElementById('groupSelect').value;
+
+            if (!name) { alert("이름을 먼저 입력해주세요!"); return; }
+
+            // 1. UI 상태 변경 (입력 차단 및 안내 문구 수정)
+            nameInput.disabled = true;
+            document.getElementById('groupSelect').disabled = true;
+            captureBtn.disabled = true;
+            captureBtn.innerText = "촬영 진행 중...";
+            
+            instructionText.innerText = "📷 천천히 고개를 좌우로 한 바퀴 돌려주세요!";
+            instructionText.style.color = "#faa61a"; // 주황색
+            statusMessage.style.color = "#333333";
+            statusMessage.innerText = "서버에서 얼굴 특징을 추출하고 있습니다...";
+            
+            // 2. 프로그레스 바 시작
+            progressContainer.style.display = "block";
+            let width = 0;
+            progressBar.style.width = "0%";
+            progressInterval = setInterval(() => {
+                if (width >= 95) {
+                    clearInterval(progressInterval);
+                } else {
+                    width += 2.5;
+                    progressBar.style.width = width + "%";
+                }
+            }, 100);
+
+            // 3. 백엔드로 촬영 '시작' 트리거 전송
+            fetch('/api/register_continuous_realsense', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, group: group })
+            })
+            .then(response => response.json())
+            .then(data => {
+                clearInterval(progressInterval);
+                progressBar.style.width = "100%"; // 완료
+
+                if (data.status === 'success') {
+                    instructionText.innerText = "🎉 등록이 완료되었습니다!";
+                    instructionText.style.color = "#7289da";
+                    statusMessage.style.color = "#28a745";
+                    statusMessage.innerText = "✅ 다양한 각도의 얼굴 특징점이 성공적으로 DB에 저장되었습니다.";
+                    
+                    // ⭐️ 등록 완료 시 버튼 전환
+                    captureBtn.style.display = "none";
+                    resetBtn.style.display = "inline-block";
+                    returnBtn.style.display = "inline-block"; // 관제화면 복귀 버튼 표시
+                } else {
+                    instructionText.innerText = "⚠️ 등록 실패";
+                    instructionText.style.color = "#dc3545";
+                    statusMessage.style.color = "#dc3545";
+                    statusMessage.innerText = data.message || "서버 판별 중 문제가 발생했습니다. 다시 시도해주세요.";
+                    
+                    captureBtn.disabled = false;
+                    captureBtn.innerText = "🎥 다시 촬영하기";
+                }
+            })
+            .catch(error => {
+                clearInterval(progressInterval);
+                instructionText.innerText = "⚠️ 서버 통신 오류";
+                instructionText.style.color = "#dc3545";
+                statusMessage.style.color = "#dc3545";
+                statusMessage.innerText = "파이썬 서버가 켜져 있는지 확인하세요.";
+                
+                captureBtn.disabled = false;
+                captureBtn.innerText = "🎥 다시 촬영하기";
+            });
+        }
+
+        // 초기화 로직
+        function resetForNewPerson() {
+            nameInput.disabled = false;
+            document.getElementById('groupSelect').disabled = false;
+            nameInput.value = "";
+            
+            instructionText.innerText = "정면을 본 상태로 아래 버튼을 눌러주세요.";
+            instructionText.style.color = "#28a745";
+            statusMessage.innerText = "";
+            
+            progressContainer.style.display = "none";
+            progressBar.style.width = "0%";
+            
+            // ⭐️ 초기화 시 버튼 원상복구
+            resetBtn.style.display = "none";
+            returnBtn.style.display = "none"; // 관제화면 복귀 버튼 숨김
+            captureBtn.style.display = "inline-block";
+            captureBtn.disabled = false;
+            captureBtn.innerText = "🎥 연속 촬영 시작";
+            captureBtn.style.backgroundColor = "#43b581";
+            
+            nameInput.focus();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureFace-RX — 실시간 모니터링</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; background: #F1F5F9; color: #1E293B; min-height: 100vh; }
+
+    /* ── 상단 바 ── */
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid #E2E8F0;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .topbar-logo { font-size: 17px; font-weight: 700; color: #3B82F6; letter-spacing: -0.3px; }
+    .topbar-logo span { color: #1E293B; font-weight: 400; }
+    .topbar-nav a {
+      text-decoration: none;
+      color: #64748B;
+      margin-left: 4px;
+      font-size: 14px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .topbar-nav a:hover { background: #F1F5F9; color: #1E293B; }
+    .topbar-nav a.active { background: #EFF6FF; color: #3B82F6; font-weight: 600; }
+
+    /* ── 통계 바 ── */
+    .stats-bar { display: flex; gap: 12px; padding: 20px 24px 12px; flex-wrap: wrap; }
+    .stat-card {
+      background: #fff;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 150px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .stat-icon { font-size: 22px; line-height: 1; }
+    .stat-label { font-size: 11px; color: #64748B; font-weight: 500; letter-spacing: 0.3px; text-transform: uppercase; }
+    .stat-value { font-size: 22px; font-weight: 700; color: #1E293B; line-height: 1.2; margin-top: 1px; }
+    .badge-rec {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #FEF2F2;
+      color: #DC2626;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .badge-rec::before {
+      content: '';
+      width: 7px; height: 7px;
+      background: #DC2626;
+      border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* ── 그리드 컨트롤 ── */
+    .grid-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px 10px;
+    }
+    .grid-header-title { font-size: 13px; font-weight: 600; color: #475569; }
+    .grid-controls { display: flex; gap: 6px; }
+    .grid-btn {
+      background: #fff;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #64748B;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .grid-btn:hover { border-color: #3B82F6; color: #3B82F6; }
+    .grid-btn.active { background: #3B82F6; color: #fff; border-color: #3B82F6; font-weight: 600; }
+
+    /* ── 카메라 그리드 ── */
+    .cam-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 0 24px 24px;
+      transition: grid-template-columns 0.2s;
+    }
+    .cam-tile {
+      background: #fff;
+      border: 1px solid #E2E8F0;
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      aspect-ratio: 4/3;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .cam-tile.live { border-color: #3B82F6; box-shadow: 0 0 0 2px #BFDBFE; }
+    .cam-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cam-label {
+      position: absolute;
+      top: 10px; left: 10px;
+      background: rgba(15,23,42,0.65);
+      backdrop-filter: blur(4px);
+      color: #fff;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .cam-live-badge {
+      position: absolute;
+      top: 10px; right: 10px;
+      background: #DC2626;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .cam-placeholder {
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #F8FAFC;
+      color: #94A3B8;
+    }
+    .cam-placeholder .ph-icon { font-size: 32px; opacity: 0.4; }
+    .cam-placeholder .ph-text { font-size: 13px; font-weight: 500; }
+
+    /* ── 경고 토스트 ── */
+    .toast-container {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 999;
+    }
+    .toast {
+      background: #1E293B;
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      animation: slideIn 0.2s ease;
+    }
+    .toast.warn { background: #B45309; }
+    @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+<div id="selectiveError" role="status" style="padding:10px;color:#b91c1c"></div>
+<script>setInterval(async()=>{try{const s=await(await fetch("/api/stats")).json();document.getElementById("selectiveError").textContent=s.error?"선택 녹화 오류: "+s.error:""}catch(e){}},2000)</script>
+
+<!-- 상단 바 -->
+<div class="topbar">
+  <div class="topbar-logo">🔒 SecureFace<span>-RX</span></div>
+  <nav class="topbar-nav">
+    <a href="/" class="active">실시간 모니터링</a>
+    <a href="/assets">보호 자산</a>
+    <a href="/employees">🔐 관리자</a>
+  </nav>
+</div>
+
+<!-- 통계 바 -->
+<div class="stats-bar">
+  <div class="stat-card">
+    <div class="stat-icon">📷</div>
+    <div>
+      <div class="stat-label">활성 카메라</div>
+      <div class="stat-value">1</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🟢</div>
+    <div>
+      <div class="stat-label">인식된 사원</div>
+      <div class="stat-value" id="stat-emp">0</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🔴</div>
+    <div>
+      <div class="stat-label">외부인 경고</div>
+      <div class="stat-value" id="stat-unk">0</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">⏺</div>
+    <div>
+      <div class="stat-label">녹화 상태</div>
+      <div><span class="badge-rec">REC</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 그리드 컨트롤 -->
+<div class="grid-header">
+  <div class="grid-header-title">CCTV 스트림</div>
+  <div class="grid-controls">
+    <span id="gpuBadge" style="font-size:13px; margin-right:12px;"></span>
+    <button class="grid-btn active" onclick="setGrid(2, this)">2×2</button>
+    <button class="grid-btn" onclick="setGrid(1, this)">단독</button>
+  </div>
+</div>
+
+<!-- 카메라 그리드 -->
+<div class="cam-grid" id="camGrid">
+  <!-- CAM-01: JS 폴링 스냅샷 스트림 -->
+  <div class="cam-tile live">
+    <img id="streamImg" alt="CAM-01" style="width:100%;height:100%;object-fit:cover;display:block;">
+    <div class="cam-label">CAM-01</div>
+    <div class="cam-live-badge">LIVE</div>
+  </div>
+
+  <!-- CAM-02~04: 플레이스홀더 -->
+  <div class="cam-tile">
+    <div class="cam-placeholder">
+      <div class="ph-icon">📷</div>
+      <div class="ph-text">CAM-02 · 미연결</div>
+    </div>
+  </div>
+  <div class="cam-tile">
+    <div class="cam-placeholder">
+      <div class="ph-icon">📷</div>
+      <div class="ph-text">CAM-03 · 미연결</div>
+    </div>
+  </div>
+  <div class="cam-tile">
+    <div class="cam-placeholder">
+      <div class="ph-icon">📷</div>
+      <div class="ph-text">CAM-04 · 미연결</div>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 컨테이너 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  // ── 스냅샷 폴링 (~10fps) ──
+  const streamImg = document.getElementById('streamImg');
+  let frameRequestInFlight = false;
+  function refreshFrame() {
+    // 이전 요청이 끝나기 전에 새 요청을 겹쳐 보내지 않는다.
+    // 응답 순서가 뒤집혀 과거 프레임이 최신 화면을 덮는 현상을 방지한다.
+    if (frameRequestInFlight) return;
+    frameRequestInFlight = true;
+    const next = new Image();
+    const done = () => { frameRequestInFlight = false; };
+    next.onload = () => { streamImg.src = next.src; done(); };
+    next.onerror = done;
+    next.src = '/snapshot/cam_0?t=' + Date.now();
+  }
+  refreshFrame();
+  setInterval(refreshFrame, 100);
+
+  // ── 통계 폴링 ──
+  let prevUnk = 0;
+  async function updateStats() {
+    try {
+      const d = await fetch('/api/stats').then(r => r.json());
+      document.getElementById('stat-emp').textContent = d.employee_count ?? 0;
+      // 외부인 경고: 현재 프레임의 비허가자 수 (같은 얼굴 중복 누적 없음)
+      document.getElementById('stat-unk').textContent = d.unknown_alerts ?? 0;
+
+      // 외부인 새로 등장 시 경고 토스트 (현재 프레임 기준)
+      if ((d.unknown_count ?? 0) > prevUnk) {
+        showToast(`⚠️ 외부인 ${d.unknown_count}명 감지됨`, 'warn');
+      }
+      prevUnk = d.unknown_count ?? 0;
+    } catch {}
+  }
+
+  // ── GPU 서버 연결 상태 배지 ──
+  async function pollGpu() {
+    try {
+      const g = await fetch('/api/gpu_status').then(r => r.json());
+      const el = document.getElementById('gpuBadge');
+      if (!el) return;
+      if (!g.configured) { el.innerHTML = ''; return; }
+      el.innerHTML = g.connected
+        ? '<span style="padding:3px 10px; border-radius:999px; background:#dcfce7; color:#166534;">🟢 GPU 서버 연결됨</span>'
+        : '<span style="padding:3px 10px; border-radius:999px; background:#fee2e2; color:#991b1b;">🔴 GPU 서버 끊김</span>';
+    } catch {}
+  }
+  pollGpu();
+  setInterval(pollGpu, 5000);
+  setInterval(updateStats, 1000);
+  updateStats();
+
+  // ── 그리드 전환 ──
+  function setGrid(cols, btn) {
+    document.getElementById('camGrid').style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    document.querySelectorAll('.grid-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  // ── 토스트 ──
+  function showToast(msg, type = '') {
+    const container = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+</script>
+
+</body>
+</html>

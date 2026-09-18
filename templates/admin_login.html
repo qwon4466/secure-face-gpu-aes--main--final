@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureFace-RX — 관리자</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; min-height: 100vh; display: flex;
+            align-items: center; justify-content: center;
+            background: #f1f5f9; color: #1e293b;
+            font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+        }
+        .login-card {
+            width: 380px; max-width: 92vw; padding: 36px 32px;
+            background: #ffffff; border: 1px solid #e2e8f0;
+            border-radius: 16px; box-shadow: 0 10px 40px rgba(30,41,59,.10);
+            text-align: center;
+        }
+        .lock { font-size: 44px; margin-bottom: 8px; }
+        h2 { margin: 0 0 6px; font-size: 22px; color: #0f172a; }
+        .sub { color: #64748b; font-size: 13px; margin-bottom: 22px; }
+        .tabs { display: flex; margin-bottom: 20px; border-radius: 10px;
+                overflow: hidden; border: 1px solid #e2e8f0; }
+        .tab { flex: 1; padding: 10px; cursor: pointer; font-size: 15px;
+               background: #f8fafc; color: #64748b; user-select: none; }
+        .tab.active { background: #3b82f6; color: #fff; font-weight: 600; }
+        input {
+            width: 100%; padding: 12px 14px; margin-bottom: 12px;
+            background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px;
+            color: #0f172a; font-size: 15px;
+        }
+        input:focus { outline: none; border-color: #3b82f6; background: #fff; }
+        button.action {
+            width: 100%; padding: 12px; margin-top: 6px;
+            background: #3b82f6; color: #fff; border: none; border-radius: 8px;
+            font-size: 16px; font-weight: 600; cursor: pointer;
+        }
+        button.action:hover { background: #2563eb; }
+        button.action:disabled { background: #94a3b8; cursor: not-allowed; }
+        .msg { font-size: 14px; margin-top: 12px; min-height: 18px; }
+        .msg.error { color: #dc2626; }
+        .msg.ok { color: #16a34a; }
+        .back { display: inline-block; margin-top: 18px; color: #94a3b8;
+                font-size: 13px; text-decoration: none; }
+        .back:hover { color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="lock">🔐</div>
+        <h2>관리자</h2>
+        <div class="sub">사원 등록·관리는 관리자만 접근할 수 있습니다.</div>
+
+        <div class="tabs">
+            <div class="tab active" id="tabLogin" onclick="setMode('login')">로그인</div>
+            <div class="tab" id="tabSignup" onclick="setMode('signup')">회원가입</div>
+        </div>
+
+        <input type="text" id="adminId" placeholder="아이디" autocomplete="username">
+        <input type="password" id="adminPw" placeholder="비밀번호" autocomplete="current-password">
+        <button class="action" id="actionBtn" onclick="submitForm()">로그인</button>
+        <div class="msg error" id="msg"></div>
+        <a class="back" href="/">← 관제 화면으로</a>
+    </div>
+
+    <script>
+        let mode = 'login';
+
+        function setMode(m) {
+            mode = m;
+            document.getElementById('tabLogin').classList.toggle('active', m === 'login');
+            document.getElementById('tabSignup').classList.toggle('active', m === 'signup');
+            document.getElementById('actionBtn').innerText = m === 'login' ? '로그인' : '회원가입';
+            document.getElementById('adminPw').setAttribute(
+                'autocomplete', m === 'login' ? 'current-password' : 'new-password');
+            const msg = document.getElementById('msg');
+            msg.innerText = ''; msg.className = 'msg error';
+        }
+
+        function nextUrl() {
+            const p = new URLSearchParams(location.search).get('next');
+            if (p === '/register' || p === '/employees' || p === '/audit') return p;
+            return '/employees';
+        }
+
+        // 회원가입 개방 여부에 따라 탭 표시/숨김 (보안: 기본 비활성)
+        fetch('/api/admin/status').then(r => r.json()).then(s => {
+            if (!s.allow_signup) {
+                const t = document.getElementById('tabSignup');
+                if (t) t.style.display = 'none';
+            }
+        }).catch(() => {});
+
+        async function submitForm() {
+            const id = document.getElementById('adminId').value.trim();
+            const pw = document.getElementById('adminPw').value;
+            const btn = document.getElementById('actionBtn');
+            const msg = document.getElementById('msg');
+            msg.className = 'msg error'; msg.innerText = '';
+            btn.disabled = true; btn.innerText = '처리 중...';
+
+            const url = mode === 'login' ? '/api/admin/login' : '/api/admin/signup';
+            try {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, password: pw })
+                });
+                const d = await r.json().catch(() => ({}));
+                if (r.ok) {
+                    if (mode === 'login') {
+                        location.href = nextUrl();
+                    } else {
+                        // 회원가입 성공 → 로그인 탭으로 전환
+                        setMode('login');
+                        msg.className = 'msg ok';
+                        msg.innerText = '✅ 가입 완료! 로그인하세요.';
+                    }
+                } else {
+                    msg.className = 'msg error';
+                    msg.innerText = '❌ ' + (d.detail || '처리 실패');
+                }
+            } catch (e) {
+                msg.className = 'msg error';
+                msg.innerText = '❌ 서버 연결 실패';
+            } finally {
+                btn.disabled = false;
+                btn.innerText = mode === 'login' ? '로그인' : '회원가입';
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter') submitForm();
+        });
+    </script>
+</body>
+</html>

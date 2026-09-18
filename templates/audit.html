@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureFace-RX — 감사 로그</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; background:#f1f5f9; color:#1e293b;
+           font-family:'Segoe UI','Malgun Gothic',sans-serif; }
+    .topbar { display:flex; align-items:center; justify-content:space-between;
+              padding:14px 24px; background:#0f172a; color:#e2e8f0; }
+    .topbar-logo { font-weight:700; }
+    .topbar-nav a { color:#94a3b8; text-decoration:none; margin-left:18px; }
+    .topbar-nav a.active { color:#fff; font-weight:600; }
+    .subnav { display:flex; gap:8px; align-items:center; padding:10px 24px;
+              background:#0f172a; border-bottom:1px solid #1e293b; }
+    .subnav span { color:#94a3b8; font-weight:600; margin-right:6px; font-size:14px; }
+    .subnav a, .subnav button { padding:7px 14px; border-radius:6px; font-size:14px;
+              text-decoration:none; border:1px solid #334155; background:#1e293b;
+              color:#e2e8f0; cursor:pointer; }
+    .subnav a.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+    .subnav .logout { margin-left:auto; background:#475569; color:#fff; border:none; }
+    .content { padding:24px; max-width:1100px; margin:0 auto; }
+    .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px;
+             padding:18px 20px; margin-bottom:20px; box-shadow:0 2px 8px rgba(30,41,59,.05); }
+    .panel-title { font-size:18px; font-weight:700; margin-bottom:4px; }
+    .panel-sub { color:#64748b; font-size:13px; margin-bottom:14px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:9px 10px; border-bottom:1px solid #eef2f7; }
+    th { color:#64748b; font-weight:600; background:#f8fafc; }
+    .badge { padding:2px 8px; border-radius:999px; font-size:12px; }
+    .b-ok { background:#dcfce7; color:#166534; }
+    .b-fail { background:#fee2e2; color:#991b1b; }
+    .b-warn { background:#fef3c7; color:#92400e; }
+    .empty { color:#94a3b8; padding:20px; text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-logo">🔒 SecureFace-RX</div>
+    <nav class="topbar-nav">
+      <a href="/">실시간 모니터링</a>
+      <a href="/assets">보호 자산</a>
+      <a href="/employees" class="active">🔐 관리자</a>
+    </nav>
+  </div>
+
+  <div class="subnav">
+    <span>관리자 메뉴</span>
+    <a href="/employees">👥 사원 관리</a>
+    <a href="/register">＋ 사원 등록</a>
+    <a href="/audit" class="active">📋 감사 로그</a>
+    <a href="/decryption_page" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">🗂️ 원본 복원</a>
+<a href="/selective/" style="padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; text-decoration:none; font-size:14px; border:1px solid #334155;">선택적 복원</a>
+    <button class="logout" onclick="fetch('/api/admin/logout',{method:'POST'}).then(()=>location.href='/admin/login')">🚪 로그아웃</button>
+  </div>
+
+  <div class="content">
+    <div class="panel">
+      <div class="panel-title">🔓 복원 접근 이력</div>
+      <div class="panel-sub">누가 · 언제 · 어떤 영상을 복원(익명화 해제)했는지 기록합니다. (책임성 확보)</div>
+      <table>
+        <thead><tr><th>시각</th><th>관리자</th><th>청크</th><th>IP</th><th>결과</th></tr></thead>
+        <tbody id="restoreBody"><tr><td colspan="5" class="empty">불러오는 중...</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">🚨 비허가자 감지 이력</div>
+      <div class="panel-sub">등록되지 않은 인원(비허가자)이 감지된 이벤트입니다.</div>
+      <table>
+        <thead><tr><th>시각</th><th>구분</th><th>유사도</th></tr></thead>
+        <tbody id="detectBody"><tr><td colspan="3" class="empty">불러오는 중...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function esc(s){ return String(s ?? '').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+    function fmt(t){ return esc((t||'').replace('T',' ')); }
+
+    async function load() {
+      try {
+        const r = await fetch('/api/audit/restore').then(x=>x.json());
+        const tb = document.getElementById('restoreBody');
+        tb.innerHTML = r.length ? r.map(e => `
+          <tr>
+            <td>${fmt(e.time)}</td>
+            <td>${esc(e.who)}</td>
+            <td style="font-size:12px; color:#64748b;">${esc(e.chunk_name || e.chunk_id)}</td>
+            <td>${esc(e.ip)}</td>
+            <td><span class="badge ${e.success?'b-ok':'b-fail'}">${e.success?'성공':'실패'}</span></td>
+          </tr>`).join('') : '<tr><td colspan="5" class="empty">복원 이력이 없습니다.</td></tr>';
+      } catch { document.getElementById('restoreBody').innerHTML = '<tr><td colspan="5" class="empty">불러오기 실패</td></tr>'; }
+
+      try {
+        const d = await fetch('/api/audit/detections').then(x=>x.json());
+        const tb = document.getElementById('detectBody');
+        tb.innerHTML = d.length ? d.map(e => `
+          <tr>
+            <td>${fmt(e.time)}</td>
+            <td><span class="badge b-warn">${esc(e.group || '비허가')}</span></td>
+            <td>${esc(e.sim)}</td>
+          </tr>`).join('') : '<tr><td colspan="3" class="empty">감지 이력이 없습니다.</td></tr>';
+      } catch { document.getElementById('detectBody').innerHTML = '<tr><td colspan="3" class="empty">불러오기 실패</td></tr>'; }
+    }
+    load();
+    setInterval(load, 5000);
+  </script>
+</body>
+</html>
