@@ -87,11 +87,17 @@ class CPUAdapter:
     """Same SCRFD/ArcFace detector.detect + norm_crop + get_feat as CameraProcessor._process.
     Explicit local ONNX models only; no FaceAnalysis model downloader or legacy recorder.
     """
-    def __init__(self, detector_path, recognizer_path, gallery=None):
+    def __init__(self, detector_path, recognizer_path, gallery=None, det_thresh=0.35):
         self.Result,self.cosine=legacy_components()
         paths=[Path(detector_path),Path(recognizer_path)]
         if any(not p.is_file() or p.suffix!='.onnx' for p in paths):
             raise RestoreError('실제 SCRFD / ArcFace ONNX 모델 파일을 지정하세요')
+        try:
+            det_thresh=float(det_thresh)
+        except (TypeError,ValueError):
+            raise RestoreError('얼굴 탐지 임계값 오류')
+        if not 0.05<=det_thresh<=0.95:
+            raise RestoreError('얼굴 탐지 임계값은 0.05~0.95 범위여야 합니다')
         from insightface.model_zoo import get_model
         from insightface.utils import face_align
         self.align=face_align.norm_crop
@@ -99,8 +105,10 @@ class CPUAdapter:
         self.recognizer=get_model(str(paths[1]),providers=['CPUExecutionProvider'])
         if not hasattr(self.detector,'detect') or not hasattr(self.recognizer,'get_feat'):
             raise RestoreError('SCRFD 탐지 모델 / ArcFace 인식 모델 종류를 확인하세요')
-        self.detector.prepare(ctx_id=-1,input_size=(640,640),det_thresh=0.6)
+        self.detector.prepare(ctx_id=-1,input_size=(640,640),det_thresh=det_thresh)
         self.recognizer.prepare(ctx_id=-1)
+        self.det_thresh=det_thresh
+        print(f'[SCRFD] CPU 탐지 임계값={det_thresh:.2f}',flush=True)
         self.reload_gallery(gallery)
 
     def reload_gallery(self, gallery):
@@ -140,7 +148,7 @@ class CPUAdapter:
                         ranked=[(self.cosine(emb,v),n) for n,v in self.users]
                         score,identity=max(ranked)
                 except Exception as exc:
-                    print('[ArcFace] 임베딩 생성 실패: 비허가자 표시 / 전체키 전용:',type(exc).__name__,flush=True)
+                    print('[ArcFace] 임베딩 생성 실패: 비허가자 표시 / 선택복원 외부인 처리:',type(exc).__name__,flush=True)
             out.append({'bbox':det.bbox,'quality':det.conf,'similarity':score,'identity':identity,
                         'gallery_valid':bool(self.users)})
         return out
