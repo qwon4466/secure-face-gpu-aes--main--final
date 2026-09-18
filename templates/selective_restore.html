@@ -1,30 +1,295 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SecureFace-RX | 선택적 복원</title>
-<style>
-*{box-sizing:border-box}body{margin:0;font:14px 'Malgun Gothic',system-ui,sans-serif;background:#f1f5f9;color:#334155}a{text-decoration:none}.top{height:62px;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 24px}.logo{font-size:18px;font-weight:700}.top nav{display:flex;gap:24px}.top a{color:#cbd5e1}.top .admin{color:#fff;font-weight:700}.adminbar{display:flex;gap:8px;align-items:center;padding:10px 24px;background:#0f172a;border-top:1px solid #1e293b}.adminbar span{color:#94a3b8;font-weight:600;margin-right:6px}.adminbar a,.adminbar button{padding:7px 14px;border-radius:6px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;font:inherit}.adminbar .active{background:#3b82f6;color:#fff;border-color:#3b82f6}.adminbar button{margin-left:auto;background:#475569;cursor:pointer}.page{max-width:1440px;margin:auto;padding:24px;display:grid;grid-template-columns:340px 1fr;gap:24px;height:calc(100vh - 118px)}.panel{background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 3px #0001;overflow:auto}.list-head{position:sticky;top:0;background:#fff;padding:20px;border-bottom:1px solid #e2e8f0;z-index:1;display:flex;align-items:center;justify-content:space-between}.list-head h2{font-size:16px;margin:0;color:#1e293b}.refresh{border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:7px 10px;cursor:pointer}.chunks{padding:10px}.chunk{width:100%;text-align:left;border:1px solid transparent;background:#fff;border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer}.chunk:hover{background:#f8fafc}.chunk.selected{background:#eff6ff;border-color:#3b82f6}.chunk time{display:block;color:#1e293b;font-weight:700}.chunk small{display:block;color:#64748b;margin-top:5px}.empty{padding:30px 15px;text-align:center;color:#94a3b8}.detail{padding:26px}.initial{height:100%;display:grid;place-items:center;color:#94a3b8;font-size:17px}.hidden{display:none!important}.detail h1{font-size:20px;margin:0 0 18px;color:#0f172a}.grid{display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:10px;margin-bottom:18px}.info{background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:10px}.info label{display:block;font-size:11px;color:#64748b}.info b{display:block;margin-top:3px;color:#1e293b;overflow-wrap:anywhere}.preview{width:100%;max-height:330px;object-fit:contain;background:#0f172a;border-radius:8px}.framebar{width:100%}.roles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.role{display:block;border:1px solid #cbd5e1;border-radius:8px;padding:12px;cursor:pointer}.role:has(input:checked){border:2px solid #3b82f6;background:#eff6ff}.role strong{display:block;color:#0f172a;margin-bottom:5px}.role small{display:block;color:#64748b;line-height:1.45}.keyrow{display:flex;gap:12px;align-items:center;padding:14px;background:#f8fafc;border-radius:8px}.run{background:#3b82f6;color:white;border:0;border-radius:6px;padding:11px 18px;font-weight:700;cursor:pointer}.progress{white-space:pre-wrap;min-height:22px;margin:14px 0;color:#475569}.result{border-top:1px solid #e2e8f0;padding-top:18px}.result img{width:100%;max-height:330px;object-fit:contain;background:#0f172a}.result-controls{display:flex;gap:10px;align-items:center;margin-top:10px}.result-controls input{flex:1}.download{display:inline-block;background:#16a34a;color:#fff;padding:9px 14px;border-radius:6px}@media(max-width:850px){.page{grid-template-columns:1fr;height:auto}.grid,.roles{grid-template-columns:1fr}.adminbar{flex-wrap:wrap}}
-</style></head><body>
-<header class="top"><div class="logo">🔒 SecureFace-RX</div><nav><a href="/">실시간 모니터링</a><a href="/assets">보호 자산</a><a class="admin" href="/employees">관리자</a></nav></header>
-<nav class="adminbar" aria-label="관리자 메뉴"><span>관리자 메뉴</span><a href="/employees">👥 사원 관리</a><a href="/register">＋ 사원 등록</a><a href="/audit">📋 감사 로그</a><a href="/decryption_page">🗂️ 원본 복원</a><a class="active" href="/selective/">선택적 복원</a><button id="logout">🚪 로그아웃</button></nav>
-<main class="page"><aside class="panel"><div class="list-head"><h2>녹화 청크 (raw_data)</h2><button id="refresh" class="refresh">새로고침</button></div><div id="chunks" class="chunks"><div class="empty">불러오는 중…</div></div></aside>
-<section class="panel detail"><div id="initial" class="initial">좌측에서 복원할 청크를 선택하세요.</div><div id="active" class="hidden"><h1 id="title"></h1><div id="metadata" class="grid"></div><img id="preview" class="preview" alt="선택한 보호 영상 프레임"><input id="previewFrame" class="framebar" type="range" min="0" max="0" value="0" aria-label="보호 영상 프레임">
-<div class="roles"><label class="role"><input type="radio" name="role" value="external"><strong>외부인키</strong><small>비허가자로 분류된 외부인 얼굴만 복원합니다.<br>허가자와 전체키 전용 영역은 블러 상태로 유지됩니다.</small></label><label class="role"><input type="radio" name="role" value="internal"><strong>내부인키</strong><small>등록된 허가자 얼굴만 복원합니다.<br>비허가자와 전체키 전용 영역은 블러 상태로 유지됩니다.</small></label><label class="role"><input type="radio" name="role" value="master"><strong>전체키</strong><small>허가자, 비허가자 및 전체키 전용 영역을 모두 복원합니다.</small></label></div>
-<div class="keyrow"><label>키 파일 <input id="key" type="file"></label><button id="restore" class="run">선택적 복원 실행</button></div><div id="progress" class="progress" role="status"></div>
-<div id="resultBox" class="result hidden"><h1>복원 결과</h1><img id="result" alt="복원 결과 프레임"><div class="result-controls"><button id="play" class="refresh">재생 / 일시정지</button><input id="frame" type="range" min="0" max="0" value="0" aria-label="복원 결과 프레임"><a id="download" class="download">무손실 AVI 다운로드</a></div></div></div></section></main>
-<script>
-const csrf='__CSRF__', el=id=>document.getElementById(id);let rows=[],selected=null,resultJob=null,timer=null,resultFps=10;
-const safe=v=>v===undefined||v===null||v===''?'-':v;
-async function api(path,opts={}){const r=await fetch(path,opts);let body={};try{body=await r.json()}catch{}if(!r.ok)throw Error(body.detail||'요청 실패');return body}
-function fmtDate(v){if(!v)return '-';return v.slice(0,19).replace('T',' ')+' KST'}
-function fmtDuration(v){return Number.isFinite(Number(v))?Number(v).toFixed(2)+'초':'-'}
-function render(){const box=el('chunks');box.replaceChildren();if(!rows.length){box.innerHTML='<div class="empty">저장 완료된 녹화 청크가 없습니다.</div>';return}for(const row of rows){const b=document.createElement('button');b.className='chunk'+(selected&&selected.id===row.id?' selected':'');b.dataset.id=row.id;const t=document.createElement('time');t.textContent=row.name||fmtDate(row.started_at);const s=document.createElement('small');s.textContent=fmtDuration(row.duration_seconds)+' · 저장 완료';b.append(t,s);b.onclick=()=>select(row);box.append(b)}}
-async function refresh(){const keep=selected&&selected.id;rows=await api('/selective/api/chunks');selected=rows.find(x=>x.id===keep)||null;render();if(selected)showDetail()}
-function info(label,value){return `<div class="info"><label>${label}</label><b>${safe(value)}</b></div>`}
-function showDetail(){el('initial').classList.add('hidden');el('active').classList.remove('hidden');el('title').textContent=fmtDate(selected.started_at);const g=selected.groups||{};el('metadata').innerHTML=info('촬영 날짜',selected.date)+info('시작 시각',fmtDate(selected.started_at))+info('종료 시각',fmtDate(selected.ended_at))+info('영상 길이',fmtDuration(selected.duration_seconds))+info('프레임 수',safe(selected.frames))+info('저장 FPS',Number.isFinite(Number(selected.fps))?Number(selected.fps).toFixed(2):'-')+info('해상도',selected.shape?selected.shape[1]+' × '+selected.shape[0]:'-')+info('허가자 영역',safe(g.internal))+info('비허가자 영역',safe(g.external))+info('전체키 전용',safe(g.master))+info('청크 경로','raw_data/'+safe(selected.path))+info('드롭 프레임',safe(selected.drops));el('previewFrame').max=Math.max(0,(selected.frames||1)-1);el('previewFrame').value=0;showPreview()}
-function select(row){selected=row;render();showDetail();el('progress').textContent='';el('resultBox').classList.add('hidden')}
-function showPreview(){if(selected)el('preview').src='/selective/api/chunks/'+selected.id+'/frame/'+el('previewFrame').value+'?t='+Date.now()}
-el('previewFrame').oninput=showPreview;el('refresh').onclick=()=>refresh().catch(e=>el('progress').textContent=e.message);
-el('restore').onclick=async()=>{try{if(!selected)throw Error('완료된 청크를 선택하세요.');const role=document.querySelector('input[name=role]:checked')?.value;if(!role)throw Error('키 종류를 선택하세요.');const file=el('key').files[0];if(!file||file.size!==32)throw Error('32바이트 키 파일을 선택하세요.');el('progress').textContent='복원 준비 중\n암호화 데이터 검증 중';const body=await file.arrayBuffer();const j=await api('/selective/api/restore/'+selected.id,{method:'POST',headers:{'X-SRX-CSRF':csrf,'X-SRX-Key-Role':role,'Content-Type':'application/octet-stream'},body});el('key').value='';watch(j.job,role)}catch(e){el('progress').textContent='복원 실패: '+e.message}}
-async function watch(id,role){for(;;){const j=await api('/selective/api/jobs/'+id);if(j.status==='running'){el('progress').textContent='암호화 데이터 검증 완료\n'+({external:'외부인키',internal:'내부인키',master:'전체키'}[role])+' 검증 완료\n프레임 복원 및 결과 영상 생성 중';await new Promise(r=>setTimeout(r,500));continue}if(j.status==='failed'){el('progress').textContent='복원 실패: '+j.error;return}el('progress').textContent='복원 완료\n'+safe(j.report.frames)+'프레임 · '+safe(j.report.fps)+' FPS';resultJob=id;resultFps=Number(j.report.fps)||10;el('frame').max=Math.max(0,j.report.frames-1);el('frame').value=0;el('result').src='/selective/api/jobs/'+id+'/frame/0';el('download').href='/selective/api/jobs/'+id+'/download';el('resultBox').classList.remove('hidden');return}}
-el('frame').oninput=()=>{if(resultJob)el('result').src='/selective/api/jobs/'+resultJob+'/frame/'+el('frame').value};el('play').onclick=()=>{if(timer){clearInterval(timer);timer=null}else if(resultJob){timer=setInterval(()=>{el('frame').value=(Number(el('frame').value)+1)%(Number(el('frame').max)+1);el('frame').oninput()},1000/resultFps)}};el('logout').onclick=()=>fetch('/api/admin/logout',{method:'POST'}).then(()=>location.href='/admin/login');
-const requested=new URLSearchParams(location.search).get('chunk');refresh().then(()=>{if(requested){const row=rows.find(x=>x.id===requested);if(row)select(row)}}).catch(e=>el('chunks').innerHTML='<div class="empty">'+e.message+'</div>');
-</script></body></html>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureFace-RX | 선택적 복원</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Malgun Gothic', system-ui, sans-serif; background: #f1f5f9; color: #334155; }
+        a { text-decoration: none; }
+
+        .topbar { height: 62px; display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:0 24px; border-bottom:1px solid #1e293b; color:white; }
+        .logo { font-weight:bold; font-size:18px; display:flex; align-items:center; gap:8px; }
+        .topnav { display:flex; gap:24px; font-size:14px; }
+        .topnav a { color:#cbd5e1; }
+        .topnav .admin { color:#fff; font-weight:bold; }
+
+        .adminbar { display:flex; gap:8px; align-items:center; padding:10px 24px; background:#0f172a; border-bottom:1px solid #1e293b; }
+        .adminbar .label { color:#94a3b8; font-weight:600; margin-right:6px; font-size:14px; }
+        .menu-btn { padding:7px 14px; border-radius:6px; background:#1e293b; color:#e2e8f0; font-size:14px; border:1px solid #334155; }
+        .menu-btn.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+        .logout { margin-left:auto; padding:7px 14px; border-radius:6px; background:#475569; color:#fff; border:none; cursor:pointer; font-size:14px; }
+
+        .page { padding:24px; display:flex; gap:24px; height:calc(100vh - 130px); max-width:1400px; margin:0 auto; }
+        .chunk-panel { width:300px; background:white; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.1); padding:20px; overflow-y:auto; border:1px solid #e2e8f0; }
+        .chunk-head { display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid #f1f5f9; padding-bottom:12px; }
+        .chunk-head h3 { margin:0; color:#1e293b; font-size:16px; }
+        .refresh { border:1px solid #cbd5e1; background:#fff; border-radius:6px; padding:7px 10px; cursor:pointer; color:#475569; }
+        .folder-date { font-weight:600; margin-top:15px; color:#475569; border-bottom:1px solid #e2e8f0; padding-bottom:5px; font-size:14px; }
+        .folder-time { margin-left:10px; padding:8px; cursor:pointer; color:#64748b; transition:.2s; border-radius:6px; font-size:14px; margin-top:5px; }
+        .folder-time:hover, .folder-time.selected { background:#e2e8f0; color:#0f172a; font-weight:bold; }
+        .empty { color:#94a3b8; font-size:14px; margin-top:20px; text-align:center; }
+
+        .viewer-panel { flex:1; background:white; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.1); padding:30px; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center; overflow:auto; }
+        .initial { margin-top:150px; text-align:center; color:#94a3b8; }
+        .initial .icon { font-size:48px; margin-bottom:16px; }
+        .initial h3 { font-weight:500; }
+        .viewer-active { display:none; width:100%; max-width:640px; }
+        .selected-title { color:#0f172a; margin-top:0; border-bottom:2px solid #f1f5f9; padding-bottom:12px; margin-bottom:24px; }
+
+        .password-card { background:#f8fafc; padding:24px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:24px; text-align:center; }
+        .password-card label { display:block; font-weight:600; color:#475569; margin-bottom:12px; }
+        .password-row { display:flex; gap:10px; justify-content:center; }
+        input[type="password"] { padding:10px 15px; width:280px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:14px; }
+        input[type="password"]:focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.1); }
+        .btn-restore { padding:10px 20px; background:#3b82f6; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:.2s; }
+        .btn-restore:hover { background:#2563eb; }
+        .btn-restore:disabled { opacity:.6; cursor:not-allowed; }
+
+        .hint { margin-top:12px; color:#64748b; font-size:12px; line-height:1.5; }
+        .status { font-weight:bold; margin-bottom:14px; text-align:center; font-size:15px; min-height:20px; white-space:pre-line; }
+        .result-video { width:100%; max-height:calc(100vh - 440px); object-fit:contain; border-radius:8px; display:none; box-shadow:0 4px 6px rgba(0,0,0,.05); border:1px solid #e2e8f0; margin:0 auto; background:#000; }
+        .download { display:none; width:max-content; margin:12px auto 0; padding:9px 14px; border-radius:6px; background:#16a34a; color:white; font-weight:600; }
+
+        @media (max-width:850px) {
+            .page { height:auto; flex-direction:column; }
+            .chunk-panel { width:100%; max-height:320px; }
+            .password-row { flex-direction:column; }
+            input[type="password"] { width:100%; }
+            .adminbar { flex-wrap:wrap; }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="logo">🔒 SecureFace-RX</div>
+        <nav class="topnav">
+            <a href="/">실시간 모니터링</a>
+            <a href="/assets">보호 자산</a>
+            <a class="admin" href="/employees">관리자</a>
+        </nav>
+    </header>
+
+    <nav class="adminbar" aria-label="관리자 메뉴">
+        <span class="label">관리자 메뉴</span>
+        <a class="menu-btn" href="/employees">👥 사원 관리</a>
+        <a class="menu-btn" href="/register">＋ 사원 등록</a>
+        <a class="menu-btn" href="/audit">📋 감사 로그</a>
+        <a class="menu-btn" href="/decryption_page">🗂️ 원본 복원</a>
+        <a class="menu-btn active" href="/selective/">선택적 복원</a>
+        <button id="logout" class="logout">🚪 로그아웃</button>
+    </nav>
+
+    <main class="page">
+        <aside class="chunk-panel">
+            <div class="chunk-head">
+                <h3>녹화 청크 (raw_data)</h3>
+                <button id="refresh" class="refresh">새로고침</button>
+            </div>
+            <div id="chunkList"><div class="empty">불러오는 중…</div></div>
+        </aside>
+
+        <section class="viewer-panel">
+            <div id="viewerInitial" class="initial">
+                <div class="icon">📁</div>
+                <h3>좌측에서 복원할 청크를 선택하세요</h3>
+            </div>
+
+            <div id="viewerActive" class="viewer-active">
+                <h3 id="selectedChunkTitle" class="selected-title">선택된 청크:</h3>
+
+                <div class="password-card">
+                    <label for="restorePassword">선택적 복원 비밀번호</label>
+                    <div class="password-row">
+                        <input type="password" id="restorePassword" maxlength="32" autocomplete="off" placeholder="비밀번호를 입력하세요">
+                        <button id="restoreButton" class="btn-restore">복원 실행</button>
+                    </div>
+                    <div class="hint">외부인 비밀번호는 외부인 얼굴만, 내부인 비밀번호는 등록된 허가자 얼굴만 복원합니다.</div>
+                </div>
+
+                <div id="restoreStatus" class="status"></div>
+                <video id="restoredVideo" class="result-video" controls autoplay></video>
+                <a id="download" class="download">복원 영상 다운로드</a>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const csrf = '__CSRF__';
+        const el = id => document.getElementById(id);
+        let rows = [];
+        let selected = null;
+        let currentObjectUrl = null;
+
+        async function api(path, opts = {}) {
+            const response = await fetch(path, opts);
+            let payload = {};
+            try { payload = await response.json(); } catch (_) {}
+            if (!response.ok) throw new Error(payload.detail || '요청 실패');
+            return payload;
+        }
+
+        function displayName(row) {
+            const path = String(row.name || row.path || '');
+            const parts = path.split('/');
+            if (parts.length >= 3) return parts.slice(-2).join('/');
+            return path || String(row.started_at || '').slice(11, 19).replaceAll(':', '-');
+        }
+
+        function renderChunks() {
+            const container = el('chunkList');
+            container.replaceChildren();
+            if (!rows.length) {
+                container.innerHTML = '<div class="empty">저장 완료된 녹화 청크가 없습니다.</div>';
+                return;
+            }
+
+            let lastDate = null;
+            for (const row of rows) {
+                const date = row.date || String(row.started_at || '').slice(0, 10) || '-';
+                if (date !== lastDate) {
+                    const header = document.createElement('div');
+                    header.className = 'folder-date';
+                    header.textContent = '📅 ' + date;
+                    container.appendChild(header);
+                    lastDate = date;
+                }
+
+                const item = document.createElement('div');
+                item.className = 'folder-time' + (selected && selected.id === row.id ? ' selected' : '');
+                item.textContent = '🕒 ' + displayName(row);
+                item.onclick = () => selectChunk(row);
+                container.appendChild(item);
+            }
+        }
+
+        async function refreshChunks() {
+            const keep = selected && selected.id;
+            rows = await api('/selective/api/chunks');
+            selected = rows.find(row => row.id === keep) || null;
+            renderChunks();
+            if (!selected) showInitial();
+        }
+
+        function showInitial() {
+            el('viewerInitial').style.display = 'block';
+            el('viewerActive').style.display = 'none';
+        }
+
+        function resetResult() {
+            el('restoreStatus').textContent = '';
+            el('restoredVideo').pause();
+            el('restoredVideo').removeAttribute('src');
+            el('restoredVideo').style.display = 'none';
+            el('download').style.display = 'none';
+            el('download').removeAttribute('href');
+            if (currentObjectUrl) {
+                URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = null;
+            }
+        }
+
+        function selectChunk(row) {
+            selected = row;
+            renderChunks();
+            el('viewerInitial').style.display = 'none';
+            el('viewerActive').style.display = 'block';
+            el('selectedChunkTitle').textContent = '선택된 청크: ' + displayName(row);
+            el('restorePassword').value = '';
+            resetResult();
+            el('restorePassword').focus();
+        }
+
+        function roleText(role) {
+            if (role === 'external') return '외부인';
+            if (role === 'internal') return '내부인';
+            return '선택적';
+        }
+
+        async function requestRestore() {
+            const status = el('restoreStatus');
+            const button = el('restoreButton');
+            try {
+                if (!selected) throw new Error('복원할 청크를 선택하세요.');
+                const password = el('restorePassword').value;
+                if (!password) throw new Error('비밀번호를 입력해주세요.');
+
+                resetResult();
+                button.disabled = true;
+                status.style.color = '#d97706';
+                status.textContent = '⏳ 비밀번호를 확인하고 복원 작업을 등록하는 중입니다...';
+
+                const body = new TextEncoder().encode(password);
+                const job = await api('/selective/api/restore/' + selected.id, {
+                    method: 'POST',
+                    headers: {
+                        'X-SRX-CSRF': csrf,
+                        'Content-Type': 'application/octet-stream'
+                    },
+                    body
+                });
+                el('restorePassword').value = '';
+                await pollRestore(job.job);
+            } catch (error) {
+                status.style.color = '#dc2626';
+                status.textContent = '❌ ' + error.message;
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function pollRestore(jobId) {
+            const status = el('restoreStatus');
+            while (true) {
+                const job = await api('/selective/api/jobs/' + jobId);
+                if (job.status === 'failed') throw new Error(job.error || '복원 실패');
+
+                if (job.status === 'running') {
+                    status.style.color = '#d97706';
+                    status.textContent = `⏳ ${roleText(job.role)} 비밀번호 인증 완료\n복원 영상을 생성하는 중입니다... (${job.progress || 0}%)`;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    continue;
+                }
+
+                if (job.status === 'complete') {
+                    const video = el('restoredVideo');
+                    const source = `/selective/api/jobs/${jobId}/download?inline=1&t=${Date.now()}`;
+                    video.src = source;
+                    video.style.display = 'block';
+                    video.load();
+                    video.play().catch(() => {});
+
+                    const download = el('download');
+                    download.href = `/selective/api/jobs/${jobId}/download`;
+                    download.style.display = 'block';
+                    status.style.color = '#16a34a';
+                    status.textContent = `✅ ${roleText(job.role)} 선택 복원이 완료되었습니다.`;
+                    return;
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        el('restoreButton').onclick = requestRestore;
+        el('restorePassword').addEventListener('keydown', event => {
+            if (event.key === 'Enter') requestRestore();
+        });
+        el('refresh').onclick = () => refreshChunks().catch(error => {
+            el('chunkList').innerHTML = '<div class="empty">' + error.message + '</div>';
+        });
+        el('logout').onclick = () => fetch('/api/admin/logout', { method:'POST' }).then(() => location.href='/admin/login');
+
+        const requested = new URLSearchParams(location.search).get('chunk');
+        refreshChunks().then(() => {
+            if (requested) {
+                const row = rows.find(item => item.id === requested);
+                if (row) selectChunk(row);
+            }
+        }).catch(error => {
+            el('chunkList').innerHTML = '<div class="empty">' + error.message + '</div>';
+        });
+    </script>
+</body>
+</html>
