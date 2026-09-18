@@ -34,7 +34,7 @@ class MainCamera:
         self.root=private_dir(Path(os.environ.get('SRX_DATA_ROOT',str(default_root))).absolute())
         self.keydir=self.root/('.keys' if self.operational else 'keys')
         if not self.keydir.exists():
-            old=ROOT/'data/selective/main-server/keys'  # one-time read-only key continuity; no chunks are read or written there
+            old=ROOT/'data/selective/main-server/keys'
             if self.operational and old.is_dir():
                 private_dir(self.keydir)
                 for name in ('internal.key','external.key','master.key'):
@@ -52,7 +52,6 @@ class MainCamera:
 
     def _adapter(self):
         if self.test:return SyntheticAdapter()
-        # Explicit ONNX settings or the SAME local buffalo_s models used by the existing server.
         modeldir=Path(getattr(self.config,'SELECTIVE_MODEL_DIR',Path.home()/'.insightface/models/buffalo_s'))
         detector=getattr(self.config,'SELECTIVE_DETECTOR_PATH','')
         recognizer=getattr(self.config,'SELECTIVE_RECOGNIZER_PATH','')
@@ -71,12 +70,60 @@ class MainCamera:
             self.thread=threading.Thread(target=self._loop,name='selective-camera',daemon=True)
             self.thread.start()
 
+    def _update_display_authorization(self, faces, observations, states, now):
+        """Apply match confirmation + delayed revoke to prevent one-frame auth flicker."""
+        confirm=max(1,int(getattr(self.config,'FACE_AUTH_CONFIRM_MATCHES',2)))
+        revoke=max(1,int(getattr(self.config,'FACE_AUTH_REVOKE_MISMATCHES',5)))
+        hold=max(0.0,float(getattr(self.config,'FACE_AUTH_HOLD_SECONDS',0.8)))
+        threshold=float(getattr(self.config,'MATCH_THRESHOLD',0.45))
+        next_states={}
+
+        for face,observation in zip(faces,observations):
+            track=face['track_id']
+            score=face.get('similarity')
+            identity=observation.get('identity')
+            matched=(face.get('gallery_valid',False) and identity is not None and
+                     score is not None and np.isfinite(score) and score>=threshold)
+
+            previous=states.get(track,{
+                'identity':None,'matches':0,'misses':0,'authorized':False,'hold_until':0.0
+            })
+            state=dict(previous)
+
+            if matched:
+                if state.get('identity')==identity:
+                    state['matches']=state.get('matches',0)+1
+                else:
+                    state['identity']=identity
+                    state['matches']=1
+                    state['authorized']=False
+                state['misses']=0
+                if state['matches']>=confirm:
+                    state['authorized']=True
+                    state['hold_until']=now+hold
+            else:
+                state['matches']=0
+                if state.get('authorized',False):
+                    state['misses']=state.get('misses',0)+1
+                    if state['misses']>=revoke and now>=state.get('hold_until',0.0):
+                        state['authorized']=False
+                        state['identity']=None
+                        state['misses']=0
+                else:
+                    state['misses']=0
+                    state['identity']=None
+
+            face['authorized']=bool(state.get('authorized',False))
+            next_states[track]=state
+
+        return next_states
+
     def _loop(self):
         cap=None
         try:
             korean_font()
             self.adapter=self._adapter();classifier=Classifier()
-            display_streaks={}
+            display_states={}
             fps=getattr(self.config,'SELECTIVE_FPS',10)
             duration=getattr(self.config,'CHUNK_SECONDS',None) if self.operational else None
             self.recorder=Recorder(self.chunks,self.keys,fps=fps,chunk_frames=getattr(self.config,'SELECTIVE_CHUNK_FRAMES',8),duration=duration)
@@ -109,7 +156,7 @@ class MainCamera:
                         if is_file:break
                         if self.recorder.duration:self.recorder.abort()
                         else:self.recorder.flush()
-                        classifier=Classifier();display_streaks={}
+                        classifier=Classifier();display_states={}
                         with self.lock:
                             self.error='카메라 연결 끊김: 재연결 중';self.preview=None;self.raw=None;self.faces=[]
                         print('[Camera] 프레임 읽기 실패: 동일 장치 재연결 시도',flush=True)
@@ -126,18 +173,7 @@ class MainCamera:
                 observations=self.adapter.observe(frame,capture)
                 faces=classifier.classify(observations,capture)
                 timestamp=cap.get(cv2.CAP_PROP_POS_MSEC) if cap is not None and is_file else (tick-start)*1000
-                next_streaks={}
-                for face,observation in zip(faces,observations):
-                    # Display threshold stays at the existing registration match threshold.
-                    score=face.get('similarity')
-                    matched=face.get('gallery_valid',False) and score is not None and score>=getattr(self.config,'MATCH_THRESHOLD',0.45)
-                    track=face['track_id']
-                    identity=observation.get('identity')
-                    previous_identity,previous_streak=display_streaks.get(track,(None,0))
-                    streak=(previous_streak+1 if previous_identity==identity else 1) if matched and identity else 0
-                    next_streaks[track]=(identity,streak)
-                    face['authorized']=streak>=3
-                display_streaks=next_streaks
+                display_states=self._update_display_authorization(faces,observations,display_states,tick)
                 self.recorder.add(frame,faces,capture,timestamp)
                 protected=protect(frame,faces)[0]
                 ok,jpg=cv2.imencode('.jpg',protected)
@@ -175,7 +211,8 @@ class MainCamera:
                     'selective_restore':True,'camera':dict(SELECTED),**self.metrics}
     def get_save_progress(self):
         with self.lock:return self.recorder.progress() if self.recorder else {'in_progress':False}
-        def get_perf(self):return self.metrics.copy()
+    def get_perf(self):
+        with self.lock:return self.metrics.copy()
     def get_debug_info(self):return self.get_stats()
     def web_state(self):
         with self.lock:return {'recording':self.running,'error':self.error,'faces':self.faces.copy(),'stats':self.metrics.copy()}
