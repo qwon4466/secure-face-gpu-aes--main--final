@@ -27,3 +27,12 @@
 {"chunk_id": "808bd88d1b81490691c2e353e2668161", "who": "0000", "ip": "127.0.0.1", "success": false, "mode": "selective-provided-key", "time": "2026-09-17T13:43:55"}
 {"chunk_id": "808bd88d1b81490691c2e353e2668161", "who": "0000", "ip": "127.0.0.1", "success": true, "mode": "selective-external", "time": "2026-09-17T13:43:57"}
 {"chunk_id": "2026-09-17/13/13-45-45", "who": "0000", "ip": "127.0.0.1", "success": false, "mode": "selective-external", "time": "2026-09-17T13:47:58"}
+{"chunk_id": "2026-09-18/17/17-17-11", "who": "0000", "ip": "127.0.0.1", "success": true, "mode": "selective-external", "time": "2026-09-20T14:27:55"}
+{"chunk_id": "2026-09-20/14/14-26-34", "who": "0000", "ip": "127.0.0.1", "success": true, "mode": "selective-external", "time": "2026-09-20T14:29:39"}
+{"chunk_id": "2026-09-20/14/14-28-06", "who": "0000", "ip": "127.0.0.1", "success": true, "mode": "selective-external", "time": "2026-09-20T15:18:31"}
+{"chunk_id": "2026-09-20/15/15-18-45", "who": "0000", "ip": "127.0.0.1", "success": true, "mode": "selective-external", "time": "2026-09-20T15:38:17"}
+{"chunk_id": "2026-09-20/15/15-18-45", "who": "0000", "ip": "127.0.0.1", "success": false, "mode": "selective-invalid", "time": "2026-09-20T15:38:36"}
+{"chunk_id": "2026-09-20/15/15-18-45", "who": "0000", "ip": "127.0.0.1", "success": true, "mode": "selective-internal", "time": "2026-09-20T15:40:48"}
+{"chunk_id": "2026-09-20/15/15-18-45", "who": "0000", "ip": "127.0.0.1", "success": true, "mode": "selective-internal", "time": "2026-09-20T15:43:32"}
+{"chunk_id": "2026-09-20/15/15-39-49", "who": "0000", "ip": "127.0.0.1", "success": true, "mode": "selective-internal", "time": "2026-09-20T15:44:43"}
+{"chunk_id": "2026-09-20/15/15-39-49", "who": "0000", "ip": "127.0.0.1", "success": true, "mode": "selective-external", "time": "2026-09-20T15:46:07"}

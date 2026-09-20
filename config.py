@@ -89,6 +89,8 @@ DETECT_LOG_COOLDOWN = 10
 
 # ArcFace 코사인 유사도 임계값
 MATCH_THRESHOLD = 0.45
+FACE_AUTH_RETAIN_THRESHOLD = 0.40
+FACE_AUTH_TRACK_IOU = 0.35
 
 # Hailo-8L 가속: SCRFD 탐지는 Hailo에서, ArcFace 인식은 CPU에서 실행.
 # True여도 hailo_platform이 없으면 자동으로 insightface(CPU)로 폴백.

@@ -54,6 +54,7 @@ import event_log
 from fastapi.staticfiles import StaticFiles
 
 from core.selective_camera import MainCamera as CameraProcessor, DB_PATH, _adapt_array, _convert_array
+from core.selective_recognition import stable_person_id
 from core.selective_routes import create_router as create_selective_router
 from core.selective_index import completed as completed_selective, find as find_selective
 
@@ -170,7 +171,7 @@ async def auto_recognize_logger():
                     
                     if similarity > best_score:
                         best_score = similarity
-                        best_match_name = name
+                        best_match_name = stable_person_id(name)
                 
                 threshold = 0.45
                 if best_score > threshold:
@@ -472,14 +473,11 @@ async def api_debug():
 @app.get("/api/users", dependencies=[Depends(require_admin)])
 async def api_users():
     conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute(
-        "SELECT DISTINCT SUBSTR(name, 1, INSTR(name||'_', '_') - 1) as base_name, "
-        "auth_group FROM users"
-    ).fetchall()
+    rows = conn.execute("SELECT name, auth_group FROM users").fetchall()
     conn.close()
     seen = {}
-    for base_name, group in rows:
-        seen[base_name] = group
+    for stored_name, group in rows:
+        seen[stable_person_id(stored_name)] = group
     return [{"name": k, "group": v} for k, v in seen.items()]
 
 

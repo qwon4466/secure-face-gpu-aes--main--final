@@ -9,7 +9,7 @@ import time
 import cv2
 import numpy as np
 from .selective_crypto import ROOT, RestoreError, generate_keys, keyset, private_dir, protect
-from .selective_recognition import CPUAdapter, Classifier, SyntheticAdapter, synthetic_frame
+from .selective_recognition import CPUAdapter, Classifier, Policy, SyntheticAdapter, synthetic_frame, iou
 from .selective_recording import Recorder
 from .camera_manager import CameraManager, SELECTED
 from .face_display import korean_font
@@ -73,9 +73,11 @@ class MainCamera:
     def _update_display_authorization(self, faces, observations, states, now):
         """Apply match confirmation + delayed revoke to prevent one-frame auth flicker."""
         confirm=max(1,int(getattr(self.config,'FACE_AUTH_CONFIRM_MATCHES',2)))
+        window=max(confirm,int(getattr(self.config,'FACE_AUTH_CONFIRM_WINDOW',3)))
         revoke=max(1,int(getattr(self.config,'FACE_AUTH_REVOKE_MISMATCHES',5)))
         hold=max(0.0,float(getattr(self.config,'FACE_AUTH_HOLD_SECONDS',0.8)))
         threshold=float(getattr(self.config,'MATCH_THRESHOLD',0.45))
+        retain=float(getattr(self.config,'FACE_AUTH_RETAIN_THRESHOLD',max(0.0,threshold-0.05)))
         next_states={}
 
         for face,observation in zip(faces,observations):
@@ -86,44 +88,85 @@ class MainCamera:
                      score is not None and np.isfinite(score) and score>=threshold)
 
             previous=states.get(track,{
-                'identity':None,'matches':0,'misses':0,'authorized':False,'hold_until':0.0
+                'identity':None,'matches':0,'history':[],'misses':0,
+                'authorized':False,'hold_until':0.0
             })
             state=dict(previous)
 
+            valid=(face.get('gallery_valid',False) and identity is not None and
+                   score is not None and np.isfinite(score))
+            same_identity=valid and state.get('identity')==identity
             if matched:
-                if state.get('identity')==identity:
-                    state['matches']=state.get('matches',0)+1
-                else:
+                if not same_identity:
                     state['identity']=identity
-                    state['matches']=1
-                    state['authorized']=False
+                    state['history']=[]
+                    state['matches']=0
+                history=list(state.get('history',[]))[-window+1:]
+                history.append(1)
+                state['history']=history
+                state['matches']=sum(history)
                 state['misses']=0
                 if state['matches']>=confirm:
                     state['authorized']=True
                     state['hold_until']=now+hold
-            else:
+            elif valid and same_identity and float(score)>=retain and state.get('authorized',False):
+                # A small score dip from pose/landmark changes is retained.
+                state['misses']=0
+                state['hold_until']=now+hold
+            elif valid:
+                # Only a valid, sustained mismatch counts toward revocation.
+                state['history']=[]
                 state['matches']=0
                 if state.get('authorized',False):
                     state['misses']=state.get('misses',0)+1
-                    if state['misses']>=revoke and now>=state.get('hold_until',0.0):
+                    if state['misses']>=revoke:
                         state['authorized']=False
                         state['identity']=None
                         state['misses']=0
                 else:
-                    state['misses']=0
                     state['identity']=None
+                    state['misses']=0
+            elif not state.get('authorized',False):
+                state['identity']=None
+                state['history']=[]
+                state['matches']=0
+            # Missing/invalid embeddings are deliberately held for the short
+            # continuity window and never counted as a mismatch.
 
             face['authorized']=bool(state.get('authorized',False))
+            # Storage policy follows the final display decision.  There is no
+            # operational third bucket that could make selective restore skip
+            # an otherwise visible face.
+            face['group']='internal' if face['authorized'] else 'external'
             next_states[track]=state
 
         return next_states
+
+    def _hold_detector_dropouts(self, observations, previous_observations,
+                                last_detected_at, now):
+        """Reuse a recent bbox during a brief detector miss only."""
+        if not previous_observations or now-last_detected_at > float(getattr(self.config,'FACE_AUTH_HOLD_SECONDS',0.8)):
+            return observations
+        threshold=float(getattr(self.config,'FACE_AUTH_TRACK_IOU',0.35))
+        current=list(observations)
+        if not current:
+            current=[dict(item,quality=0.0,detector_hold=True) for item in previous_observations]
+            return current
+        for old in previous_observations:
+            if any(iou(old['bbox'],item['bbox'])>=threshold for item in current):
+                continue
+            held=dict(old,quality=0.0,detector_hold=True)
+            current.append(held)
+        return current
 
     def _loop(self):
         cap=None
         try:
             korean_font()
-            self.adapter=self._adapter();classifier=Classifier()
+            self.adapter=self._adapter()
+            classifier=Classifier(Policy(track_iou=float(getattr(self.config,'FACE_AUTH_TRACK_IOU',0.35))))
             display_states={}
+            previous_observations=[];last_detected_at=-1e9
             fps=getattr(self.config,'SELECTIVE_FPS',10)
             duration=getattr(self.config,'CHUNK_SECONDS',None) if self.operational else None
             self.recorder=Recorder(self.chunks,self.keys,fps=fps,chunk_frames=getattr(self.config,'SELECTIVE_CHUNK_FRAMES',8),duration=duration)
@@ -156,7 +199,8 @@ class MainCamera:
                         if is_file:break
                         if self.recorder.duration:self.recorder.abort()
                         else:self.recorder.flush()
-                        classifier=Classifier();display_states={}
+                        classifier=Classifier(Policy(track_iou=float(getattr(self.config,'FACE_AUTH_TRACK_IOU',0.35))))
+                        display_states={}
                         with self.lock:
                             self.error='카메라 연결 끊김: 재연결 중';self.preview=None;self.raw=None;self.faces=[]
                         print('[Camera] 프레임 읽기 실패: 동일 장치 재연결 시도',flush=True)
@@ -170,10 +214,15 @@ class MainCamera:
                 if width and frame.shape[1]>width:
                     height=int(frame.shape[0]*width/frame.shape[1])//2*2
                     frame=cv2.resize(frame,(width//2*2,height))
-                observations=self.adapter.observe(frame,capture)
+                detected=self.adapter.observe(frame,capture)
+                if detected:
+                    last_detected_at=tick
+                observations=self._hold_detector_dropouts(
+                    detected,previous_observations,last_detected_at,tick)
                 faces=classifier.classify(observations,capture)
                 timestamp=cap.get(cv2.CAP_PROP_POS_MSEC) if cap is not None and is_file else (tick-start)*1000
                 display_states=self._update_display_authorization(faces,observations,display_states,tick)
+                previous_observations=list(observations)
                 self.recorder.add(frame,faces,capture,timestamp)
                 protected=protect(frame,faces)[0]
                 ok,jpg=cv2.imencode('.jpg',protected)

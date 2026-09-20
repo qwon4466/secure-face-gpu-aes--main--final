@@ -9,10 +9,25 @@ import json
 from pathlib import Path
 import sqlite3
 import sys
+import re
 import numpy as np
 from .selective_crypto import ROOT, RestoreError
 
 PROJECT=ROOT
+
+# Registration appends only these known suffixes.  Keep user supplied
+# underscores intact (for example ``unit_a`` remains ``unit_a``).
+_PERSON_SUFFIXES = (
+    re.compile(r'_연속_\d+$'),
+    re.compile(r'_(?:정면|좌측면|우측면)$'),
+    re.compile(r'_측면[12]\((?:좌|우)\)$'),
+)
+
+def stable_person_id(name):
+    value = str(name).strip()
+    for suffix in _PERSON_SUFFIXES:
+        value = suffix.sub('', value)
+    return value or str(name)
 
 def legacy_components():
     """Use the original interface and unchanged cosine function, after hash checks.
@@ -115,7 +130,7 @@ class CPUAdapter:
                     vec=np.load(io.BytesIO(blob),allow_pickle=False)
                     if vec.dtype.kind!='f' or vec.size not in (128,256,512) or not np.isfinite(vec).all():
                         raise RestoreError('등록 벡터 오류')
-                    users.append((hashlib.sha256(str(name).encode()).hexdigest()[:16],vec))
+                    users.append((stable_person_id(name),vec))
             finally:
                 conn.close()
 
